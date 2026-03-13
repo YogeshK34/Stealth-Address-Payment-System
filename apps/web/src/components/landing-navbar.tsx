@@ -8,9 +8,10 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '#features', label: 'Features' },
-  { href: '#flow', label: 'Flow' },
-  { href: '#proof', label: 'Architecture' },
-  { href: '#faq', label: 'FAQ' },
+  { href: '#proof', label: 'Pricing' },
+  { href: '/dashboard', label: 'View demo' },
+  { href: '#faq', label: 'Blog' },
+  { href: '#contact', label: 'Contact' },
 ];
 
 export function LandingNavbar(): React.JSX.Element {
@@ -44,43 +45,37 @@ export function LandingNavbar(): React.JSX.Element {
             : 'shadow-[0_12px_60px_rgba(0,0,0,0.28)]'
         )}
       >
-        <div className="flex h-16 items-center justify-between gap-4 px-5 md:h-[72px] md:px-7">
+        <div className="flex h-14 items-center justify-between gap-4 px-5 md:h-[60px] md:px-7">
           <Link href="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full border border-fuchsia-400/25 bg-fuchsia-400/10 text-fuchsia-100 shadow-[0_0_30px_rgba(232,121,249,0.2)]">
               <Shield className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-sm font-medium uppercase tracking-[0.24em] text-fuchsia-100/85">
+              <div className="text-sm font-light uppercase tracking-[0.24em] text-fuchsia-100/85">
                 Stealth Pay
               </div>
               <div className="text-sm text-white/55">Private Bitcoin rails</div>
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-1 rounded-full border border-white/10 bg-black/10 p-1 md:flex">
+          <nav className="hidden items-center gap-5 md:flex">
             {navItems.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
-                className="rounded-full px-4 py-2 text-sm font-medium text-white/68 transition hover:bg-white/8 hover:text-white"
+                className="text-sm font-light text-white/68 transition hover:text-white"
               >
                 {item.label}
               </a>
             ))}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center">
             <Link
               href="/login"
-              className="hidden rounded-full border border-white/12 px-4 py-2 text-sm font-medium text-white/75 transition hover:border-white/20 hover:bg-white/8 hover:text-white md:inline-flex"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-400 via-rose-300 to-amber-200 px-4 py-2 text-sm font-light text-black shadow-[0_12px_40px_rgba(251,191,36,0.25)] transition hover:scale-[1.02]"
             >
               Sign in
-            </Link>
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-fuchsia-400 via-rose-300 to-amber-200 px-4 py-2 text-sm font-medium text-black shadow-[0_12px_40px_rgba(251,191,36,0.25)] transition hover:scale-[1.02]"
-            >
-              Open dashboard
               <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>

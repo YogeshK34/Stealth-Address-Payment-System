@@ -10,14 +10,14 @@ const footerLinks = [
 
 export function LandingFooter(): React.JSX.Element {
   return (
-    <footer className="relative border-t border-white/10 bg-black/20">
+    <footer id="contact" className="relative border-t border-white/10 bg-black/20">
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 md:grid-cols-[1.4fr,1fr] md:px-8">
         <div className="space-y-5">
-          <div className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-fuchsia-100/85">
+          <div className="inline-flex items-center gap-2 rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-3 py-1 text-xs font-light uppercase tracking-[0.22em] text-fuchsia-100/85">
             <Shield className="h-3.5 w-3.5" />
             Privacy infrastructure for Bitcoin
           </div>
-          <div className="max-w-xl text-2xl font-medium tracking-tight text-white md:text-3xl">
+          <div className="max-w-xl text-2xl font-light tracking-tight text-white md:text-3xl">
             Institutional-grade wallet flows with stealth-address privacy layered on top.
           </div>
           <p className="max-w-2xl text-sm leading-7 text-white/55">
