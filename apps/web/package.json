@@ -4,7 +4,7 @@
   "private": true,
   "description": "Stealth Address Payment System — Next.js frontend + API routes",
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "node ./scripts/start-dev.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
