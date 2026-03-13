@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-
-interface JwtPayload {
-  sub: string;
-  email: string;
-  iat: number;
-  exp: number;
-}
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@stealth/db';
 
 type AuthResult =
   | { ok: true; userId: string; email: string }
   | { ok: false; response: NextResponse };
 
 /**
- * Extract and verify JWT from Authorization header.
- * Returns userId on success, or a 401 NextResponse on failure.
+ * Verify the Supabase Bearer token from the Authorization header.
+ * Uses getUser() — validates against Supabase Auth server (not local JWT secret).
  */
-export function requireAuth(request: NextRequest): AuthResult {
+export async function requireAuth(request: NextRequest): Promise<AuthResult> {
   const header = request.headers.get('Authorization');
   if (!header?.startsWith('Bearer ')) {
     return {
@@ -29,10 +23,16 @@ export function requireAuth(request: NextRequest): AuthResult {
   }
 
   const token = header.slice(7);
-  try {
-    const payload = jwt.verify(token, process.env['JWT_SECRET'] as string) as JwtPayload;
-    return { ok: true, userId: payload.sub, email: payload.email };
-  } catch {
+
+  const supabase = createClient<Database>(
+    process.env['NEXT_PUBLIC_SUPABASE_URL']!,
+    process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']!,
+    { auth: { persistSession: false } }
+  );
+
+  const { data, error } = await supabase.auth.getUser(token);
+
+  if (error || !data.user) {
     return {
       ok: false,
       response: NextResponse.json(
@@ -41,4 +41,10 @@ export function requireAuth(request: NextRequest): AuthResult {
       ),
     };
   }
+
+  return {
+    ok: true,
+    userId: data.user.id,
+    email: data.user.email ?? '',
+  };
 }

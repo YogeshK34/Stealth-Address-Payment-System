@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@stealth/db';
+import { getSupabaseAdmin } from '@stealth/db';
 import { scanTransaction } from '@stealth/crypto';
 import { getWalletTransfers } from '@stealth/bitgo-client';
 import { requireAuth } from '@/lib/auth';
@@ -11,7 +11,7 @@ const scanSchema = z.object({
 
 // POST /api/v1/scan — trigger on-demand blockchain scan
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const authResult = requireAuth(request);
+  const authResult = await requireAuth(request);
   if (!authResult.ok) return authResult.response;
 
   const body = await request.json();
@@ -23,9 +23,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const wallet = await db.wallet.findFirst({
-    where: { id: parsed.data.walletId, userId: authResult.userId },
-  });
+  const supabase = getSupabaseAdmin();
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('id, bitgo_wallet_id, public_view_key, public_spend_key, encrypted_view_priv_key')
+    .eq('id', parsed.data.walletId)
+    .eq('user_id', authResult.userId)
+    .single();
+
   if (!wallet) {
     return NextResponse.json(
       { error: { code: 'WALLET_NOT_FOUND', message: 'Wallet not found.' } },
@@ -35,7 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     // Fetch recent transfers from BitGo
-    const transfers = await getWalletTransfers(wallet.bitgoWalletId, 50);
+    const transfers = await getWalletTransfers(wallet.bitgo_wallet_id, 50);
     const detected = [];
 
     for (const transfer of transfers as Record<string, unknown>[]) {
@@ -50,27 +55,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       for (const output of outputs) {
         const result = scanTransaction(
           ephemeralPublicKey,
-          wallet.encryptedViewPrivKey, // TODO: decrypt before use
-          { publicViewKey: wallet.publicViewKey, publicSpendKey: wallet.publicSpendKey },
+          wallet.encrypted_view_priv_key, // TODO: decrypt before use
+          { publicViewKey: wallet.public_view_key, publicSpendKey: wallet.public_spend_key },
           output.address
         );
 
         if (result.match) {
-          const existing = await db.detectedPayment.findUnique({
-            where: { txHash: transfer['txid'] as string },
-          });
+          const txid = transfer['txid'] as string;
+          const { data: existing } = await supabase
+            .from('detected_payments')
+            .select('id')
+            .eq('tx_hash', txid)
+            .maybeSingle();
 
           if (!existing) {
-            const payment = await db.detectedPayment.create({
-              data: {
-                walletId: wallet.id,
-                txHash: transfer['txid'] as string,
-                oneTimeAddress: output.address,
-                ephemeralPublicKey,
-                amountSats: output.value,
-              },
-            });
-            detected.push(payment);
+            const { data: payment } = await supabase
+              .from('detected_payments')
+              .insert({
+                wallet_id: wallet.id,
+                tx_hash: txid,
+                one_time_address: output.address,
+                ephemeral_public_key: ephemeralPublicKey,
+                amount_sats: output.value,
+              })
+              .select()
+              .single();
+            if (payment) detected.push(payment);
           }
         }
       }
@@ -95,20 +105,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 // GET /api/v1/scan — list detected payments
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const authResult = requireAuth(request);
+  const authResult = await requireAuth(request);
   if (!authResult.ok) return authResult.response;
 
   const { searchParams } = new URL(request.url);
   const walletId = searchParams.get('walletId');
 
-  const payments = await db.detectedPayment.findMany({
-    where: {
-      wallet: { userId: authResult.userId },
-      ...(walletId ? { walletId } : {}),
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  const supabase = getSupabaseAdmin();
 
-  return NextResponse.json({ data: payments, meta: { timestamp: new Date().toISOString() } });
+  // First get wallet ids belonging to user, then filter detected payments
+  const walletsQuery = supabase.from('wallets').select('id').eq('user_id', authResult.userId);
+
+  const { data: userWallets } = await walletsQuery;
+  const walletIds = (userWallets ?? []).map((w) => w.id);
+
+  let query = supabase
+    .from('detected_payments')
+    .select('*')
+    .in('wallet_id', walletIds)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (walletId) {
+    query = query.eq('wallet_id', walletId);
+  }
+
+  const { data: payments } = await query;
+
+  return NextResponse.json({ data: payments ?? [], meta: { timestamp: new Date().toISOString() } });
 }

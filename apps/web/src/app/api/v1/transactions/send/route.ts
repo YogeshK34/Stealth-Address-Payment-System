@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@stealth/db';
+import { getSupabaseAdmin } from '@stealth/db';
 import { generateEphemeralKeyPair, deriveOneTimeAddress } from '@stealth/crypto';
 import { sendStealthTransaction } from '@stealth/bitgo-client';
 import { requireAuth } from '@/lib/auth';
@@ -15,7 +15,7 @@ const sendSchema = z.object({
 
 // POST /api/v1/transactions/send
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const authResult = requireAuth(request);
+  const authResult = await requireAuth(request);
   if (!authResult.ok) return authResult.response;
 
   const body = await request.json();
@@ -27,13 +27,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { senderWalletId, receiverPublicViewKey, receiverPublicSpendKey, amountSats, walletPassphrase } =
-    parsed.data;
+  const {
+    senderWalletId,
+    receiverPublicViewKey,
+    receiverPublicSpendKey,
+    amountSats,
+    walletPassphrase,
+  } = parsed.data;
 
   // Verify wallet belongs to user
-  const wallet = await db.wallet.findFirst({
-    where: { id: senderWalletId, userId: authResult.userId },
-  });
+  const supabase = getSupabaseAdmin();
+  const { data: wallet } = await supabase
+    .from('wallets')
+    .select('id, bitgo_wallet_id, encrypted_view_priv_key, public_view_key, public_spend_key')
+    .eq('id', senderWalletId)
+    .eq('user_id', authResult.userId)
+    .single();
   if (!wallet) {
     return NextResponse.json(
       { error: { code: 'WALLET_NOT_FOUND', message: 'Sender wallet not found.' } },
@@ -58,26 +67,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ephemeralPublicKey: derived.ephemeralPublicKey,
     });
 
-    // 3. Record in DB
-    const tx = await db.transaction.create({
-      data: {
-        walletId: wallet.id,
-        txHash: result.txHash,
+    // 3. Record in Supabase
+    const { data: tx, error: txError } = await supabase
+      .from('transactions')
+      .insert({
+        wallet_id: wallet.id,
+        tx_hash: result.txHash,
         direction: 'send',
-        amountSats,
-        ephemeralPublicKey: derived.ephemeralPublicKey,
-        oneTimeAddress: derived.oneTimeAddress,
+        amount_sats: amountSats,
+        ephemeral_public_key: derived.ephemeralPublicKey,
+        one_time_address: derived.oneTimeAddress,
         status: 'pending',
-      },
-    });
+      })
+      .select()
+      .single();
+
+    if (txError || !tx) {
+      throw new Error(txError?.message ?? 'Failed to record transaction');
+    }
 
     return NextResponse.json(
       {
         data: {
-          txHash: tx.txHash,
-          oneTimeAddress: tx.oneTimeAddress,
-          ephemeralPublicKey: tx.ephemeralPublicKey,
-          amountSats: tx.amountSats,
+          txHash: tx.tx_hash,
+          oneTimeAddress: tx.one_time_address,
+          ephemeralPublicKey: tx.ephemeral_public_key,
+          amountSats: tx.amount_sats,
           status: tx.status,
         },
       },

@@ -10,7 +10,7 @@ const deriveSchema = z.object({
 
 // POST /api/v1/stealth/address — derive a one-time address from a stealth address
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const authResult = requireAuth(request);
+  const authResult = await requireAuth(request);
   if (!authResult.ok) return authResult.response;
 
   const body = await request.json();

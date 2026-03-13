@@ -9,9 +9,7 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean",
-    "db:generate": "pnpm --filter @stealth/db prisma generate",
-    "db:migrate": "pnpm --filter @stealth/db prisma migrate dev",
-    "db:studio": "pnpm --filter @stealth/db prisma studio",
+    "db:types": "supabase gen types typescript --local > packages/db/src/database.types.ts",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\" --ignore-path .gitignore",
     "prepare": "husky"
   },

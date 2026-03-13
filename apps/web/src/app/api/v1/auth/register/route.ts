@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { db } from '@stealth/db';
+import { createSupabaseClient } from '@stealth/db';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -22,26 +20,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const { email, password } = parsed.data;
+    const supabase = createSupabaseClient();
 
-    const existing = await db.user.findUnique({ where: { email } });
-    if (existing) {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+
+    if (error) {
       return NextResponse.json(
-        { error: { code: 'INVALID_CREDENTIALS', message: 'Email already in use.' } },
-        { status: 409 }
+        { error: { code: 'INVALID_CREDENTIALS', message: error.message } },
+        { status: 400 }
       );
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
-    const user = await db.user.create({ data: { email, passwordHash } });
-
-    const token = jwt.sign(
-      { sub: user.id, email: user.email },
-      process.env['JWT_SECRET'] as string,
-      { expiresIn: process.env['JWT_EXPIRY'] ?? '24h' }
-    );
-
     return NextResponse.json(
-      { data: { token, user: { id: user.id, email: user.email } } },
+      {
+        data: {
+          user: { id: data.user?.id, email: data.user?.email },
+          session: data.session,
+          message: 'Check your email to confirm your account.',
+        },
+      },
       { status: 201 }
     );
   } catch (err) {

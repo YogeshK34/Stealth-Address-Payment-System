@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import cron from 'node-cron';
 import { runScanCycle } from './scanner.js';
-import { db } from '@stealth/db';
 
 const INTERVAL_MS = parseInt(process.env['SCAN_INTERVAL_MS'] ?? '30000', 10);
 
@@ -26,15 +25,13 @@ async function main(): Promise<void> {
   }
 
   // Graceful shutdown
-  process.on('SIGTERM', async () => {
+  process.on('SIGTERM', () => {
     console.log('[scanner] Shutting down...');
-    await db.$disconnect();
     process.exit(0);
   });
 
-  process.on('SIGINT', async () => {
+  process.on('SIGINT', () => {
     console.log('[scanner] Shutting down...');
-    await db.$disconnect();
     process.exit(0);
   });
 }
