@@ -1,0 +1,67 @@
+node login.js 
+bigint: Failed to load bindings, pure JS will be used (try npm run rebuild?)
+secp256k1 unavailable, reverting to browser version
+@polkadot/util has multiple versions, ensure that there is only one installed.
+Either remove and explicitly install matching versions or dedupe using your package manager.
+The following conflicting packages were found:
+	cjs 13.5.6	node_modules/.pnpm/@polkadot+util@13.5.6/node_modules/@polkadot/util/cjs
+	cjs 13.5.9	node_modules/.pnpm/@polkadot+util@13.5.9/node_modules/@polkadot/util/cjs
+@polkadot/util-crypto requires direct dependencies exactly matching version 13.5.6.
+Either remove and explicitly install matching versions or dedupe using your package manager.
+The following conflicting packages were found:
+	13.5.9	@polkadot/util
+@polkadot/util-crypto has multiple versions, ensure that there is only one installed.
+Either remove and explicitly install matching versions or dedupe using your package manager.
+The following conflicting packages were found:
+	cjs 13.5.6	node_modules/.pnpm/@polkadot+util-crypto@13.5.6_@polkadot+util@13.5.9/node_modules/@polkadot/util-crypto/cjs
+	cjs 13.5.6	node_modules/.pnpm/@polkadot+util-crypto@13.5.6_@polkadot+util@13.5.6/node_modules/@polkadot/util-crypto/cjs
+@polkadot/wasm-crypto has multiple versions, ensure that there is only one installed.
+Either remove and explicitly install matching versions or dedupe using your package manager.
+The following conflicting packages were found:
+	cjs 7.5.4	node_modules/.pnpm/@polkadot+wasm-crypto@7.5.4_@polkadot+util@13.5.9_@polkadot+x-randomvalues@13.5.6_@polk_ee400e881497c274914a7fe5287915bc/node_modules/@polkadot/wasm-crypto/cjs
+	cjs 7.5.4	node_modules/.pnpm/@polkadot+wasm-crypto@7.5.4_@polkadot+util@13.5.6_@polkadot+x-randomvalues@13.5.6_@polk_91e4064c394603423d38760b924f5d2a/node_modules/@polkadot/wasm-crypto/cjs
+@polkadot/wasm-bridge has multiple versions, ensure that there is only one installed.
+Either remove and explicitly install matching versions or dedupe using your package manager.
+The following conflicting packages were found:
+	cjs 7.5.4	node_modules/.pnpm/@polkadot+wasm-bridge@7.5.4_@polkadot+util@13.5.9_@polkadot+x-randomvalues@13.5.6_@polk_cb0f6a174e04113ce32ed3499bdc3308/node_modules/@polkadot/wasm-bridge/cjs
+	cjs 7.5.4	node_modules/.pnpm/@polkadot+wasm-bridge@7.5.4_@polkadot+util@13.5.6_@polkadot+x-randomvalues@13.5.6_@polk_6e57db0d44849c602287d0b73bd2b343/node_modules/@polkadot/wasm-bridge/cjs
+@polkadot/wasm-crypto-wasm has multiple versions, ensure that there is only one installed.
+Either remove and explicitly install matching versions or dedupe using your package manager.
+The following conflicting packages were found:
+	cjs 7.5.4	node_modules/.pnpm/@polkadot+wasm-crypto-wasm@7.5.4_@polkadot+util@13.5.9/node_modules/@polkadot/wasm-crypto-wasm/cjs
+	cjs 7.5.4	node_modules/.pnpm/@polkadot+wasm-crypto-wasm@7.5.4_@polkadot+util@13.5.6/node_modules/@polkadot/wasm-crypto-wasm/cjs
+@polkadot/wasm-util has multiple versions, ensure that there is only one installed.
+Either remove and explicitly install matching versions or dedupe using your package manager.
+The following conflicting packages were found:
+	cjs 7.5.4	node_modules/.pnpm/@polkadot+wasm-util@7.5.4_@polkadot+util@13.5.9/node_modules/@polkadot/wasm-util/cjs
+	cjs 7.5.4	node_modules/.pnpm/@polkadot+wasm-util@7.5.4_@polkadot+util@13.5.6/node_modules/@polkadot/wasm-util/cjs
+@polkadot/keyring has multiple versions, ensure that there is only one installed.
+Either remove and explicitly install matching versions or dedupe using your package manager.
+The following conflicting packages were found:
+	cjs 13.5.6	node_modules/.pnpm/@polkadot+keyring@13.5.6_@polkadot+util-crypto@13.5.6_@polkadot+util@13.5.9__@polkadot+util@13.5.6/node_modules/@polkadot/keyring/cjs
+	cjs 13.5.6	node_modules/.pnpm/@polkadot+keyring@13.5.6_@polkadot+util-crypto@13.5.6_@polkadot+util@13.5.9__@polkadot+util@13.5.9/node_modules/@polkadot/keyring/cjs
+Login failed: ApiResponseError: incorrect_2FA_code
+    at errFromResponse (/home/yogesh/Desktop/Hackathon-Project/node_modules/.pnpm/@bitgo+sdk-api@1.75.3_monocle-ts@2.3.13_fp-ts@2.16.11__newtype-ts@0.3.5_fp-ts@2.16.11_monocle-ts@2.3.13_fp-ts@2.16.11__/node_modules/@bitgo/sdk-api/dist/src/api.js:73:12)
+    at handleResponseError (/home/yogesh/Desktop/Hackathon-Project/node_modules/.pnpm/@bitgo+sdk-api@1.75.3_monocle-ts@2.3.13_fp-ts@2.16.11__newtype-ts@0.3.5_fp-ts@2.16.11_monocle-ts@2.3.13_fp-ts@2.16.11__/node_modules/@bitgo/sdk-api/dist/src/api.js:82:15)
+    at BitGo.authenticate (/home/yogesh/Desktop/Hackathon-Project/node_modules/.pnpm/@bitgo+sdk-api@1.75.3_monocle-ts@2.3.13_fp-ts@2.16.11__newtype-ts@0.3.5_fp-ts@2.16.11_monocle-ts@2.3.13_fp-ts@2.16.11__/node_modules/@bitgo/sdk-api/dist/src/bitgoAPI.js:807:43)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  status: 401,
+  result: {
+    name: 'OAuth2Error',
+    message: false,
+    needsOTP: true,
+    needsAuthy: true,
+    webauthn: {
+      challenge: 'hd3qVR-e_xGM2J4PCCx3WWpQ__6KmpIYbMCllHk5Pxk',
+      allowCredentials: [Array],
+      extensions: [Object],
+      origin: 'bitgo-test.com'
+    },
+    code: 401,
+    error: 'incorrect_2FA_code',
+    error_description: 'incorrect_2FA_code'
+  },
+  invalidToken: false,
+  needsOTP: true
+}
+
