@@ -1,52 +1,55 @@
 # API Documentation - Stealth Address Payment System
 
-This document describes the API routes currently implemented in the Next.js App Router under apps/web.
+This document describes the API routes implemented in the Next.js App Router under `apps/web`.
+
+The stealth crypto layer was migrated from custom secp256k1 math to the official
+[`@scopelift/stealth-address-sdk`](https://github.com/ScopeLift/stealth-address-sdk)
+(v1.0.0-beta.2), which implements [ERC-5564](https://eips.ethereum.org/EIPS/eip-5564) and
+[ERC-6538](https://eips.ethereum.org/EIPS/eip-6538).
 
 ## Base Paths
 
-- Versioned routes: /api/v1/\*
-- Current non-versioned stealth utility routes: /api/stealth/keygen, /api/stealth/id, /api/stealth/address
+- Versioned routes: `/api/v1/*`
+- Stealth utility routes: `/api/stealth/keygen`, `/api/stealth/id`, `/api/stealth/address`
 
 ## Test Coverage
 
-- Automated stealth API tests are documented in docs/api-tests.md.
-- Current stealth API test suite includes crypto integrity checks, invalid-input checks, concurrency, and stress coverage.
+Automated stealth API tests are documented in [docs/api-tests.md](api-tests.md).
+
+## Key Changes vs Previous Revision
+
+| Before                                    | After                                                       |
+| ----------------------------------------- | ----------------------------------------------------------- |
+| Custom secp256k1 ECDH math                | `generateStealthAddress()` from SDK                         |
+| `stealth:<viewPub>:<spendPub>` URI format | ERC-5564 `st:<chain>:0x<132-hex>` URI format                |
+| Bitcoin SegWit address output             | Ethereum address output (`0x...`)                           |
+| No announcement support                   | `prepareAnnounce()` payload included in send response       |
+| BitGo transfer scanning                   | `watchAnnouncementsForUser()` via ERC5564Announcer contract |
 
 ## Response Conventions
 
 ### Success
 
-Most endpoints return a success object in this shape:
-
 ```json
 {
   "data": {},
-  "meta": {
-    "timestamp": "2026-03-13T10:00:00.000Z"
-  }
+  "meta": { "timestamp": "2026-03-13T10:00:00.000Z" }
 }
 ```
 
-Some endpoints return only data without meta.
+Some endpoints return only `data` without `meta`.
 
 ### Error
 
-Errors return:
-
 ```json
 {
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human readable message"
-  }
+  "error": { "code": "ERROR_CODE", "message": "Human readable message" }
 }
 ```
 
 ## Authentication
 
-All /api/v1 routes except auth routes require bearer token auth.
-
-Header:
+All `/api/v1` routes except auth routes require bearer token auth:
 
 ```http
 Authorization: Bearer <jwt_token>
@@ -56,35 +59,36 @@ Authorization: Bearer <jwt_token>
 
 ## 1) Generate Stealth Keys
 
-- Method: POST
-- Route: /api/stealth/keygen
-- Auth: No
-- Purpose: Generate receiver stealth key pairs and derive deterministic ID from stealth meta address URI.
+- **Method:** POST
+- **Route:** /api/stealth/keygen
+- **Auth:** No
+- **SDK call:** `generateRandomStealthMetaAddress()`
+- **Purpose:** Generate an ERC-5564 compatible stealth keypair and return the meta-address URI with a deterministic SHA-256 id.
 
 ### Input
 
-- No request body required.
+No request body required.
 
 ### Output (200)
 
 ```json
 {
   "data": {
-    "id": "sha256(metaAddress)-hex-64",
-    "metaAddress": "stealth:<publicViewKey>:<publicSpendKey>",
-    "privateViewKey": "hex-64",
-    "privateSpendKey": "hex-64",
-    "publicViewKey": "compressed-pubkey-hex-66",
-    "publicSpendKey": "compressed-pubkey-hex-66"
+    "id": "sha256(stealthMetaAddressURI)-hex-64",
+    "stealthMetaAddressURI": "st:eth:0x<132-hex-meta-address>",
+    "scanPublicKey": "0x02...",
+    "scanPrivateKey": "0x<64-hex>",
+    "spendPublicKey": "0x03...",
+    "spendPrivateKey": "0x<64-hex>"
   }
 }
 ```
 
-### Deterministic ID Rule
+### Field Notes
 
-- metaAddress format: stealth:<publicViewKey>:<publicSpendKey>
-- id derivation: SHA256(metaAddress)
-- Same metaAddress always yields the same id.
+- `stealthMetaAddressURI` follows the ERC-5564 format: `st:<chain>:0x<spendPub><viewPub>` (132 hex chars = two 33-byte compressed public keys concatenated).
+- `id = SHA-256(stealthMetaAddressURI)` — deterministic, same keypair always produces the same id.
+- Key names use `scan` (viewing) and `spend` to align with ERC-5564 terminology.
 
 ### Errors
 
@@ -131,28 +135,30 @@ Authorization: Bearer <jwt_token>
 
 ---
 
-## 1.1) Deterministic ID From Meta Address
+## 1.1) Deterministic ID From Meta Address URI
 
-- Method: POST
-- Route: /api/stealth/id
-- Auth: No
-- Purpose: Convert stealth meta address into deterministic id using SHA256(metaAddress).
+- **Method:** POST
+- **Route:** /api/stealth/id
+- **Auth:** No
+- **Purpose:** Compute a deterministic SHA-256 id from an ERC-5564 stealth meta-address URI.
 
 ### Input
 
 ```json
 {
-  "metaAddress": "stealth:02ab...:03cd..."
+  "stealthMetaAddressURI": "st:eth:0x<132-hex>"
 }
 ```
+
+Validation rule: must match `^st:[a-zA-Z0-9]+:0x[0-9a-fA-F]{132}$`.
 
 ### Output (200)
 
 ```json
 {
   "data": {
-    "id": "sha256(metaAddress)-hex-64",
-    "metaAddress": "stealth:02ab...:03cd..."
+    "id": "sha256(stealthMetaAddressURI)-hex-64",
+    "stealthMetaAddressURI": "st:eth:0x<132-hex>"
   }
 }
 ```
@@ -164,42 +170,45 @@ Authorization: Bearer <jwt_token>
 
 ---
 
-## 1.2) Derive One-Time Stealth Address (Core Crypto)
+## 1.2) Derive One-Time Stealth Address (ERC-5564)
 
-- Method: POST
-- Route: /api/stealth/address
-- Auth: No
-- Purpose: Derive one-time stealth destination key/address from receiver public keys using ECDH and point arithmetic.
+- **Method:** POST
+- **Route:** /api/stealth/address
+- **Auth:** No
+- **SDK call:** `generateStealthAddress({ stealthMetaAddressURI })`
+- **Purpose:** Derive a one-time ERC-5564 stealth Ethereum address from a receiver meta-address URI.
 
 ### Input
 
 ```json
 {
-  "publicViewKey": "02ab...",
-  "publicSpendKey": "03cd..."
+  "stealthMetaAddressURI": "st:eth:0x<132-hex>"
 }
 ```
 
-### Crypto Flow
+### Crypto Flow (handled by SDK, scheme 1)
 
-- r = random ephemeral private key
-- R = r\*G (ephemeralPublicKey)
-- shared = r\*A, where A is publicViewKey
-- S = SHA256(shared)
-- P = S\*G + B, where B is publicSpendKey
+1. Parse `spendingPublicKey` and `viewingPublicKey` from meta-address.
+2. Generate ephemeral private key `r`; derive `R = r*G`.
+3. Compute shared secret: `s = H(r * viewingPublicKey)`.
+4. Derive stealth address: `stealthAddress = publicKeyToAddress(s*G + spendingPublicKey)`.
+5. Extract `viewTag = s[0]` (first byte of hashed shared secret).
 
 ### Output (200)
 
 ```json
 {
   "data": {
-    "oneTimePublicKey": "...",
-    "ephemeralPublicKey": "...",
-    "sharedSecret": "...",
-    "bitcoinAddress": "bc1..."
+    "stealthAddress": "0x...",
+    "ephemeralPublicKey": "0x02...",
+    "viewTag": "0xAB"
   }
 }
 ```
+
+- `stealthAddress` is an Ethereum address.
+- `ephemeralPublicKey` must be published on-chain so the receiver can scan.
+- `viewTag` is a 1-byte hint for fast scanning (ERC-5564 § 3).
 
 ### Errors
 
@@ -400,22 +409,26 @@ Authorization: Bearer <jwt_token>
 
 ## 8) Send Transaction
 
-- Method: POST
-- Route: /api/v1/transactions/send
-- Auth: Yes
-- Purpose: Build and send stealth payment transaction via BitGo.
+- **Method:** POST
+- **Route:** /api/v1/transactions/send
+- **Auth:** Yes
+- **SDK calls:** `generateStealthAddress()`, `stealthClient.prepareAnnounce()`
+- **Purpose:** Derive an ERC-5564 stealth address, broadcast via BitGo, and prepare the ERC-5564 announcement payload.
 
 ### Input
 
 ```json
 {
   "senderWalletId": "cuid",
-  "receiverPublicViewKey": "02...",
-  "receiverPublicSpendKey": "03...",
+  "receiverStealthMetaAddressURI": "st:eth:0x<132-hex>",
   "amountSats": 1000,
-  "walletPassphrase": "wallet-passphrase"
+  "walletPassphrase": "wallet-passphrase",
+  "senderAddress": "0x..."
 }
 ```
+
+- `receiverStealthMetaAddressURI` replaces the old `receiverPublicViewKey` / `receiverPublicSpendKey` fields.
+- `senderAddress` is optional. When provided, the response includes an `announcePayload` ready to be submitted to the ERC5564Announcer contract.
 
 ### Output (201)
 
@@ -423,13 +436,18 @@ Authorization: Bearer <jwt_token>
 {
   "data": {
     "txHash": "tx-hash",
-    "oneTimeAddress": "btc-address",
-    "ephemeralPublicKey": "02...",
+    "stealthAddress": "0x...",
+    "ephemeralPublicKey": "0x02...",
+    "viewTag": "0xAB",
     "amountSats": 1000,
-    "status": "pending"
+    "status": "pending",
+    "announcePayload": {}
   }
 }
 ```
+
+- `announcePayload` is absent when `senderAddress` is not provided.
+- `stealthAddress` is an Ethereum address (was `oneTimeAddress` / Bitcoin address in prior version).
 
 ### Errors
 
@@ -441,10 +459,17 @@ Authorization: Bearer <jwt_token>
 
 ## 9) Scan Blockchain On Demand
 
-- Method: POST
-- Route: /api/v1/scan
-- Auth: Yes
-- Purpose: Trigger scan for stealth payments on wallet.
+- **Method:** POST
+- **Route:** /api/v1/scan
+- **Auth:** Yes
+- **SDK call:** `stealthClient.watchAnnouncementsForUser()`
+- **Purpose:** Poll the ERC5564Announcer contract for on-chain announcements that match the user's stealth keypair and persist any new detected payments.
+
+### How it works
+
+1. Fetches the wallet's `spendingPublicKey` and `viewingPrivateKey` from the database.
+2. Calls `watchAnnouncementsForUser()` with a single-shot poll (replaces the previous BitGo transfer scan + manual ECDH check).
+3. For each matching log, deduplicates by `tx_hash` and inserts into `detected_payments`.
 
 ### Input
 
@@ -460,7 +485,6 @@ Authorization: Bearer <jwt_token>
 {
   "data": {
     "walletId": "cuid",
-    "scannedTxCount": 50,
     "detectedPayments": []
   },
   "meta": {
@@ -468,6 +492,8 @@ Authorization: Bearer <jwt_token>
   }
 }
 ```
+
+> Note: `scannedTxCount` is no longer returned (BitGo polling removed).
 
 ### Errors
 
@@ -522,8 +548,24 @@ GET /api/v1/scan?walletId=ckxxxxxxxxxxxxxxxxxxxx
 
 ---
 
+---
+
 ## Notes
 
-- Public keys are compressed secp256k1 keys (33 bytes, hex length 66, prefix 02 or 03).
-- Private keys are 32-byte secp256k1 scalars (hex length 64).
-- Current keygen route is non-versioned: /api/stealth/keygen.
+### SDK & Standards
+
+- All stealth crypto uses `@scopelift/stealth-address-sdk` v1.0.0-beta.2.
+- Stealth addresses are Ethereum addresses (ERC-5564 scheme 1).
+- ERC5564Announcer contract address defaults to `0x55649E01B5Df198D18D95b5cc5051630cfD45564`; override with `ERC5564_ANNOUNCER_ADDRESS` env var.
+- Chain defaults to mainnet (chainId 1); override with `STEALTH_CHAIN_ID` env var.
+- RPC URL defaults to `https://eth.llamarpc.com`; set via `RPC_URL` env var.
+
+### Key Formats
+
+- After SDK migration, all public/private keys are `0x`-prefixed hex strings.
+- `stealthMetaAddressURI` format: `st:<chain>:0x<66-hex-spendPub><66-hex-viewPub>` = 132-hex body.
+- `viewTag` is a 1-byte hex value (`0x00`–`0xff`) for fast announcement scanning.
+
+### Shared Client
+
+`apps/web/src/lib/stealthClient.ts` exports a singleton `stealthClient` used by the send and scan routes for on-chain operations (prepareAnnounce, watchAnnouncementsForUser).

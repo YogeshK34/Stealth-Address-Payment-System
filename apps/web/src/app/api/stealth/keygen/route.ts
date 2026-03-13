@@ -1,54 +1,40 @@
 import { NextResponse } from 'next/server';
-import * as secp from '@noble/secp256k1';
+import { generateRandomStealthMetaAddress } from '@scopelift/stealth-address-sdk';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
-import { z } from 'zod';
-
-const keygenResponseSchema = z.object({
-  id: z.string().regex(/^[0-9a-f]{64}$/i),
-  metaAddress: z.string().regex(/^stealth:(02|03)[0-9a-f]{64}:(02|03)[0-9a-f]{64}$/i),
-  privateViewKey: z.string().regex(/^[0-9a-f]{64}$/i),
-  privateSpendKey: z.string().regex(/^[0-9a-f]{64}$/i),
-  publicViewKey: z.string().regex(/^(02|03)[0-9a-f]{64}$/i),
-  publicSpendKey: z.string().regex(/^(02|03)[0-9a-f]{64}$/i),
-});
 
 // POST /api/stealth/keygen
+// Generates an ERC-5564 compatible stealth keypair and meta-address URI.
 export async function POST(): Promise<NextResponse> {
   try {
-    // @noble/secp256k1 uses cryptographically secure randomness.
-    const privateViewKeyBytes = secp.utils.randomPrivateKey();
-    const privateSpendKeyBytes = secp.utils.randomPrivateKey();
+    const {
+      viewingPrivateKey,
+      viewingPublicKey,
+      spendingPrivateKey,
+      spendingPublicKey,
+      stealthMetaAddressURI,
+    } = generateRandomStealthMetaAddress();
 
-    const publicViewKeyBytes = secp.getPublicKey(privateViewKeyBytes, true);
-    const publicSpendKeyBytes = secp.getPublicKey(privateSpendKeyBytes, true);
+    // Deterministic id: SHA-256 of the canonical meta-address URI.
+    const id = bytesToHex(sha256(utf8ToBytes(stealthMetaAddressURI)));
 
-    const privateViewKey = bytesToHex(privateViewKeyBytes);
-    const privateSpendKey = bytesToHex(privateSpendKeyBytes);
-    const publicViewKey = bytesToHex(publicViewKeyBytes);
-    const publicSpendKey = bytesToHex(publicSpendKeyBytes);
-    const metaAddress = `stealth:${publicViewKey}:${publicSpendKey}`;
-    const id = bytesToHex(sha256(utf8ToBytes(metaAddress)));
-
-    const payload = keygenResponseSchema.parse({
-      id,
-      metaAddress,
-      privateViewKey,
-      privateSpendKey,
-      publicViewKey,
-      publicSpendKey,
-    });
-
-    return NextResponse.json({ data: payload }, { status: 200 });
+    return NextResponse.json(
+      {
+        data: {
+          id,
+          stealthMetaAddressURI,
+          scanPrivateKey: viewingPrivateKey,
+          scanPublicKey: viewingPublicKey,
+          spendPrivateKey: spendingPrivateKey,
+          spendPublicKey: spendingPublicKey,
+        },
+      },
+      { status: 200 }
+    );
   } catch (err) {
     console.error('[POST /api/stealth/keygen]', err);
     return NextResponse.json(
-      {
-        error: {
-          code: 'KEYGEN_FAILED',
-          message: 'Failed to generate stealth keys.',
-        },
-      },
+      { error: { code: 'KEYGEN_FAILED', message: 'Failed to generate stealth keys.' } },
       { status: 500 }
     );
   }
