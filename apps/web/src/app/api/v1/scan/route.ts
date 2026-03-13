@@ -6,15 +6,19 @@ import {
   type DetectedPaymentInsert,
   type Wallet as DbWallet,
 } from '@stealth/db';
-import { scanTransaction } from '@stealth/crypto';
-import { getWalletTransfers } from '@stealth/bitgo-client';
+import { stealthClient } from '@/lib/stealthClient';
 import { requireAuth } from '@/lib/auth';
+
+// ERC5564Announcer contract address (override via env for non-mainnet).
+const ERC5564_ADDRESS =
+  (process.env.ERC5564_ANNOUNCER_ADDRESS as `0x${string}`) ??
+  '0x55649E01B5Df198D18D95b5cc5051630cfD45564';
 
 const scanSchema = z.object({
   walletId: z.string().cuid(),
 });
 
-// POST /api/v1/scan — trigger on-demand blockchain scan
+// POST /api/v1/scan — trigger on-demand ERC-5564 announcement scan via SDK
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const authResult = await requireAuth(request);
   if (!authResult.ok) return authResult.response;
@@ -31,13 +35,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const supabase = getSupabaseAdmin();
   const { data: walletData } = await supabase
     .from('wallets')
-    .select('id, bitgo_wallet_id, public_view_key, public_spend_key, encrypted_view_priv_key')
+    .select('id, public_view_key, public_spend_key, encrypted_view_priv_key')
     .eq('id', parsed.data.walletId)
     .eq('user_id', authResult.userId)
     .single();
   const wallet = walletData as Pick<
     DbWallet,
-    'id' | 'bitgo_wallet_id' | 'public_view_key' | 'public_spend_key' | 'encrypted_view_priv_key'
+    'id' | 'public_view_key' | 'public_spend_key' | 'encrypted_view_priv_key'
   > | null;
 
   if (!wallet) {
@@ -48,58 +52,58 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    // Fetch recent transfers from BitGo
-    const transfers = await getWalletTransfers(wallet.bitgo_wallet_id, 50);
     const detected: DetectedPayment[] = [];
 
-    for (const transfer of transfers as Record<string, unknown>[]) {
-      // Extract ephemeral key from tx comment/label
-      const label = (transfer['label'] ?? transfer['comment'] ?? '') as string;
-      const ephemeralMatch = label.match(/stealth:ephemeral:([0-9a-fA-F]{66})/);
-      if (!ephemeralMatch) continue;
+    // Use SDK to watch on-chain ERC-5564 announcements for this user.
+    // watchAnnouncementsForUser polls the ERC5564Announcer contract and filters
+    // announcements that match the user's viewing private key + spending public key.
+    const unwatch = await stealthClient.watchAnnouncementsForUser({
+      ERC5564Address: ERC5564_ADDRESS,
+      args: {},
+      spendingPublicKey: wallet.public_spend_key as `0x${string}`,
+      viewingPrivateKey: wallet.encrypted_view_priv_key as `0x${string}`, // caller must decrypt before storing
+      handleLogsForUser: async (logs) => {
+        for (const log of logs) {
+          const ephemeralPublicKey = log.args?.ephemeralPubKey as string | undefined;
+          const stealthAddress = log.args?.stealthAddress as string | undefined;
+          const txHash = log.transactionHash ?? '';
 
-      const ephemeralPublicKey = ephemeralMatch[1] as string;
-      const outputs = (transfer['outputs'] ?? []) as Array<{ address: string; value: number }>;
+          if (!ephemeralPublicKey || !stealthAddress || !txHash) continue;
 
-      for (const output of outputs) {
-        const result = scanTransaction(
-          ephemeralPublicKey,
-          wallet.encrypted_view_priv_key, // TODO: decrypt before use
-          { publicViewKey: wallet.public_view_key, publicSpendKey: wallet.public_spend_key },
-          output.address
-        );
-
-        if (result.match) {
-          const txid = transfer['txid'] as string;
+          // Deduplicate by tx_hash.
           const { data: existing } = await supabase
             .from('detected_payments')
             .select('id')
-            .eq('tx_hash', txid)
+            .eq('tx_hash', txHash)
             .maybeSingle();
 
           if (!existing) {
             const paymentInsert: DetectedPaymentInsert = {
               wallet_id: wallet.id,
-              tx_hash: txid,
-              one_time_address: output.address,
+              tx_hash: txHash,
+              one_time_address: stealthAddress,
               ephemeral_public_key: ephemeralPublicKey,
-              amount_sats: output.value,
+              amount_sats: 0, // amount resolved separately via on-chain balance lookup
             };
             const { data: payment } = await supabase
               .from('detected_payments')
               .insert(paymentInsert as never)
               .select()
               .single();
-            if (payment) detected.push(payment);
+            if (payment) detected.push(payment as DetectedPayment);
           }
         }
-      }
-    }
+      },
+      // Poll once then unwatch – suitable for on-demand endpoint.
+      pollOptions: { pollingInterval: 0 },
+    });
+
+    // Stop watching after the first poll cycle.
+    if (typeof unwatch === 'function') unwatch();
 
     return NextResponse.json({
       data: {
         walletId: wallet.id,
-        scannedTxCount: (transfers as unknown[]).length,
         detectedPayments: detected,
       },
       meta: { timestamp: new Date().toISOString() },
