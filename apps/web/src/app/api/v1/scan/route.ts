@@ -64,8 +64,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       viewingPrivateKey: wallet.encrypted_view_priv_key as `0x${string}`, // caller must decrypt before storing
       handleLogsForUser: async (logs) => {
         for (const log of logs) {
-          const ephemeralPublicKey = log.args?.ephemeralPubKey as string | undefined;
-          const stealthAddress = log.args?.stealthAddress as string | undefined;
+          const ephemeralPublicKey = log.ephemeralPubKey as string | undefined;
+          const stealthAddress = log.stealthAddress as string | undefined;
           const txHash = log.transactionHash ?? '';
 
           if (!ephemeralPublicKey || !stealthAddress || !txHash) continue;
