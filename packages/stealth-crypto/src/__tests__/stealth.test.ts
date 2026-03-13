@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { generateStealthKeys, generateEphemeralKeyPair } from '../src/keygen.js';
-import { deriveOneTimeAddress } from '../src/address.js';
-import { scanTransaction } from '../src/scan.js';
-import { deriveSpendingKey } from '../src/spend.js';
+import { generateStealthKeys, generateEphemeralKeyPair } from '../keygen';
+import { deriveOneTimeAddress } from '../address';
+import { scanTransaction } from '../scan';
+import { deriveSpendingKey } from '../spend';
 
 describe('Stealth Address Crypto', () => {
   it('generates distinct key pairs each call', () => {

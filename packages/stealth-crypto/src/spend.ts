@@ -1,4 +1,4 @@
-import { addScalars } from './keygen.js';
+import { addScalars } from './keygen';
 
 /**
  * Receiver: derive the private key for a detected one-time address.

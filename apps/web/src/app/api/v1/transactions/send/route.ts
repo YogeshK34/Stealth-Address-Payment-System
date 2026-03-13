@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSupabaseAdmin } from '@stealth/db';
+import {
+  getSupabaseAdmin,
+  type Transaction,
+  type TransactionInsert,
+  type Wallet as DbWallet,
+} from '@stealth/db';
 import { generateEphemeralKeyPair, deriveOneTimeAddress } from '@stealth/crypto';
 import { sendStealthTransaction } from '@stealth/bitgo-client';
 import { requireAuth } from '@/lib/auth';
@@ -37,12 +42,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Verify wallet belongs to user
   const supabase = getSupabaseAdmin();
-  const { data: wallet } = await supabase
+  const { data: walletData } = await supabase
     .from('wallets')
     .select('id, bitgo_wallet_id, encrypted_view_priv_key, public_view_key, public_spend_key')
     .eq('id', senderWalletId)
     .eq('user_id', authResult.userId)
     .single();
+  const wallet = walletData as Pick<
+    DbWallet,
+    'id' | 'bitgo_wallet_id' | 'encrypted_view_priv_key' | 'public_view_key' | 'public_spend_key'
+  > | null;
   if (!wallet) {
     return NextResponse.json(
       { error: { code: 'WALLET_NOT_FOUND', message: 'Sender wallet not found.' } },
@@ -68,19 +77,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // 3. Record in Supabase
-    const { data: tx, error: txError } = await supabase
+    const txInsert: TransactionInsert = {
+      wallet_id: wallet.id,
+      tx_hash: result.txHash,
+      direction: 'send',
+      amount_sats: amountSats,
+      ephemeral_public_key: derived.ephemeralPublicKey,
+      one_time_address: derived.oneTimeAddress,
+      status: 'pending',
+    };
+
+    const { data: txData, error: txError } = await supabase
       .from('transactions')
-      .insert({
-        wallet_id: wallet.id,
-        tx_hash: result.txHash,
-        direction: 'send',
-        amount_sats: amountSats,
-        ephemeral_public_key: derived.ephemeralPublicKey,
-        one_time_address: derived.oneTimeAddress,
-        status: 'pending',
-      })
+      .insert(txInsert as never)
       .select()
       .single();
+    const tx = txData as Transaction | null;
 
     if (txError || !tx) {
       throw new Error(txError?.message ?? 'Failed to record transaction');

@@ -1,4 +1,4 @@
-import { getBitGoInstance } from './client.js';
+import { getBitGoInstance } from './client';
 
 const COIN = process.env['BITGO_COIN'] ?? 'tbtc';
 
@@ -26,9 +26,11 @@ export async function sendStealthTransaction(opts: BuildTxOptions): Promise<Broa
   const bitgo = getBitGoInstance();
   const wallet = await bitgo.coin(COIN).wallets().get({ id: opts.walletId });
 
-  const result = await (wallet as unknown as {
-    sendMany: (opts: unknown) => Promise<{ txid: string; status: string }>;
-  }).sendMany({
+  const result = await (
+    wallet as unknown as {
+      sendMany: (opts: unknown) => Promise<{ txid: string; status: string }>;
+    }
+  ).sendMany({
     recipients: [
       {
         address: opts.recipientAddress,
@@ -46,14 +48,13 @@ export async function sendStealthTransaction(opts: BuildTxOptions): Promise<Broa
 /**
  * Fetch recent transfers for a wallet (used by scanner).
  */
-export async function getWalletTransfers(
-  walletId: string,
-  limit = 25
-): Promise<unknown[]> {
+export async function getWalletTransfers(walletId: string, limit = 25): Promise<unknown[]> {
   const bitgo = getBitGoInstance();
   const wallet = await bitgo.coin(COIN).wallets().get({ id: walletId });
-  const result = await (wallet as unknown as {
-    transfers: (opts: unknown) => Promise<{ transfers: unknown[] }>;
-  }).transfers({ limit });
+  const result = await (
+    wallet as unknown as {
+      transfers: (opts: unknown) => Promise<{ transfers: unknown[] }>;
+    }
+  ).transfers({ limit });
   return result.transfers ?? [];
 }

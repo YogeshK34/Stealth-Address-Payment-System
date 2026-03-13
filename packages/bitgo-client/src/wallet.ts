@@ -1,5 +1,5 @@
 import type { WalletBalance } from '@stealth/shared';
-import { getBitGoInstance } from './client.js';
+import { getBitGoInstance } from './client';
 
 const COIN = process.env['BITGO_COIN'] ?? 'tbtc';
 
@@ -21,9 +21,14 @@ export async function createBitGoWallet(
     passcodeEncryptionCode: passphrase,
   });
 
+  const receiveAddress = result.wallet.receiveAddress() as
+    | string
+    | { address?: string }
+    | undefined;
+
   return {
     walletId: result.wallet.id(),
-    address: result.wallet.receiveAddress()?.address ?? '',
+    address: typeof receiveAddress === 'string' ? receiveAddress : (receiveAddress?.address ?? ''),
   };
 }
 

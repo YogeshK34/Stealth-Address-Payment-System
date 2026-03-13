@@ -1,6 +1,12 @@
-import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
 import cron from 'node-cron';
+import path from 'node:path';
 import { runScanCycle } from './scanner.js';
+
+const workspaceRoot = path.resolve(process.cwd(), '../..');
+
+loadEnv({ path: path.join(workspaceRoot, '.env') });
+loadEnv({ path: path.join(workspaceRoot, '.env.local'), override: true });
 
 const INTERVAL_MS = parseInt(process.env['SCAN_INTERVAL_MS'] ?? '30000', 10);
 

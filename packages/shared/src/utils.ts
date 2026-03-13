@@ -1,4 +1,4 @@
-import { SATOSHIS_PER_BTC } from './constants.js';
+import { SATOSHIS_PER_BTC } from './constants';
 
 // ─── Bitcoin utilities ────────────────────────────────────────────────────────
 

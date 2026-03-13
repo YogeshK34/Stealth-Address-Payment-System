@@ -1,6 +1,6 @@
 import { bytesToHex, hexToBytes } from '@stealth/shared';
 import type { ScanResult, StealthAddress } from '@stealth/shared';
-import { hashPoint, pointAdd, scalarBaseMultHex, scalarMult } from './keygen.js';
+import { hashPoint, pointAdd, scalarBaseMultHex, scalarMult } from './keygen';
 
 /**
  * Receiver / Scanner: check whether a transaction output belongs to this wallet.
@@ -36,7 +36,5 @@ export function scanTransaction(
 
   const match = derivedAddress.toLowerCase() === outputAddress.toLowerCase();
 
-  return match
-    ? { match: true, oneTimeAddress: derivedAddress, sharedSecret }
-    : { match: false };
+  return match ? { match: true, oneTimeAddress: derivedAddress, sharedSecret } : { match: false };
 }

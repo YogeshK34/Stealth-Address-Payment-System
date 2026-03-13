@@ -1,4 +1,9 @@
-import { getSupabaseAdmin } from '@stealth/db';
+import {
+  getSupabaseAdmin,
+  type Database,
+  type DetectedPaymentInsert,
+  type Wallet as DbWallet,
+} from '@stealth/db';
 import { scanTransaction } from '@stealth/crypto';
 import { getWalletTransfers } from '@stealth/bitgo-client';
 
@@ -14,7 +19,8 @@ export async function runScanCycle(): Promise<void> {
   console.log('[scanner] Starting scan cycle...');
 
   const supabase = getSupabaseAdmin();
-  const { data: wallets } = await supabase.from('wallets').select('*');
+  const { data: walletRows } = await supabase.from('wallets').select('*');
+  const wallets = (walletRows ?? []) as DbWallet[];
   if (!wallets || wallets.length === 0) {
     console.log('[scanner] No wallets found, skipping scan cycle.');
     return;
@@ -52,13 +58,14 @@ export async function runScanCycle(): Promise<void> {
               .eq('tx_hash', txHash)
               .maybeSingle();
             if (!existing) {
-              await supabase.from('detected_payments').insert({
+              const paymentInsert: DetectedPaymentInsert = {
                 wallet_id: wallet.id,
                 tx_hash: txHash,
                 one_time_address: output.address,
                 ephemeral_public_key: ephemeralPublicKey,
                 amount_sats: output.value,
-              });
+              };
+              await supabase.from('detected_payments').insert(paymentInsert as never);
               totalDetected++;
               console.log(
                 `[scanner] ✓ Detected payment: ${txHash.slice(0, 12)}… +${output.value} sats → wallet ${wallet.id}`
@@ -69,9 +76,13 @@ export async function runScanCycle(): Promise<void> {
       }
 
       // Update scanner state
+      const scannerStateUpsert: Database['public']['Tables']['scanner_state']['Insert'] = {
+        wallet_id: wallet.id,
+        last_scanned_block: 0,
+      };
       await supabase
         .from('scanner_state')
-        .upsert({ wallet_id: wallet.id, last_scanned_block: 0 }, { onConflict: 'wallet_id' });
+        .upsert(scannerStateUpsert as never, { onConflict: 'wallet_id' });
     } catch (err) {
       console.error(`[scanner] Error scanning wallet ${wallet.id}:`, err);
     }

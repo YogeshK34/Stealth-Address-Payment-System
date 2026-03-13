@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSupabaseAdmin } from '@stealth/db';
+import { getSupabaseAdmin, type Wallet as DbWallet, type WalletInsert } from '@stealth/db';
 import { generateStealthKeys } from '@stealth/crypto';
 import { createBitGoWallet } from '@stealth/bitgo-client';
 import { requireAuth } from '@/lib/auth';
@@ -17,11 +17,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const supabase = getSupabaseAdmin();
 
-  const { data: wallets, error } = await supabase
+  const { data: walletsData, error } = await supabase
     .from('wallets')
     .select('id, label, bitgo_wallet_id, network, public_view_key, public_spend_key, created_at')
     .eq('user_id', authResult.userId)
     .order('created_at', { ascending: false });
+  const wallets = (walletsData ?? []) as Array<
+    Pick<
+      DbWallet,
+      | 'id'
+      | 'label'
+      | 'bitgo_wallet_id'
+      | 'network'
+      | 'public_view_key'
+      | 'public_spend_key'
+      | 'created_at'
+    >
+  >;
 
   if (error) {
     return NextResponse.json(
@@ -58,19 +70,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // 3. Persist to Supabase (private keys — encrypt with KMS in prod!)
     const supabase = getSupabaseAdmin();
-    const { data: wallet, error } = await supabase
+    const walletInsert: WalletInsert = {
+      user_id: authResult.userId,
+      label,
+      bitgo_wallet_id: bitgoWalletId,
+      public_view_key: stealthKeys.viewKey.publicKey,
+      public_spend_key: stealthKeys.spendKey.publicKey,
+      encrypted_view_priv_key: stealthKeys.viewKey.privateKey,
+      encrypted_spend_priv_key: stealthKeys.spendKey.privateKey,
+    };
+    const { data: walletData, error } = await supabase
       .from('wallets')
-      .insert({
-        user_id: authResult.userId,
-        label,
-        bitgo_wallet_id: bitgoWalletId,
-        public_view_key: stealthKeys.viewKey.publicKey,
-        public_spend_key: stealthKeys.spendKey.publicKey,
-        encrypted_view_priv_key: stealthKeys.viewKey.privateKey, // TODO: encrypt
-        encrypted_spend_priv_key: stealthKeys.spendKey.privateKey, // TODO: encrypt
-      })
+      .insert(walletInsert as never)
       .select()
       .single();
+    const wallet = walletData as DbWallet | null;
 
     if (error || !wallet) {
       throw new Error(error?.message ?? 'Insert failed');

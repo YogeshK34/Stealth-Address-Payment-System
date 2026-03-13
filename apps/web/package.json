@@ -4,7 +4,7 @@
   "private": true,
   "description": "Stealth Address Payment System — Next.js frontend + API routes",
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "node ./scripts/start-dev.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -16,6 +16,7 @@
     "@noble/hashes": "^1.8.0",
     "@noble/secp256k1": "^2.3.0",
     "@prisma/client": "^7.5.0",
+    "@radix-ui/react-accordion": "^1.2.12",
     "@stealth/bitgo-client": "workspace:*",
     "@stealth/crypto": "workspace:*",
     "@stealth/db": "workspace:*",
@@ -38,6 +39,7 @@
     "tailwind-merge": "^2.6.0",
     "uuid": "^13.0.0",
     "zod": "^3.25.76",
+    "zod": "^3.24.1",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -51,5 +53,8 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
     "vitest": "^3.2.4"
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3"
   }
 }

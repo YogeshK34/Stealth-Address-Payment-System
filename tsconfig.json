@@ -1,0 +1,31 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "dom", "dom.iterable"],
+    "jsx": "preserve",
+    "allowJs": true,
+    "noEmit": true,
+    "ignoreDeprecations": "5.0",
+    "baseUrl": ".",
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "@/*": ["apps/web/src/*"],
+      "@stealth/shared": ["packages/shared/src/index.ts"],
+      "@stealth/crypto": ["packages/stealth-crypto/src/index.ts"],
+      "@stealth/bitgo-client": ["packages/bitgo-client/src/index.ts"],
+      "@stealth/db": ["packages/db/src/index.ts"]
+    }
+  },
+  "include": [
+    "apps/web/next-env.d.ts",
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "scripts/**/*.ts"
+  ],
+  "exclude": ["**/node_modules/**", "**/dist/**", "**/.next/**"]
+}

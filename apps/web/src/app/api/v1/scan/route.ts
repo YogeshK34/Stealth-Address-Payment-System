@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSupabaseAdmin } from '@stealth/db';
+import {
+  getSupabaseAdmin,
+  type DetectedPayment,
+  type DetectedPaymentInsert,
+  type Wallet as DbWallet,
+} from '@stealth/db';
 import { scanTransaction } from '@stealth/crypto';
 import { getWalletTransfers } from '@stealth/bitgo-client';
 import { requireAuth } from '@/lib/auth';
@@ -24,12 +29,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data: wallet } = await supabase
+  const { data: walletData } = await supabase
     .from('wallets')
     .select('id, bitgo_wallet_id, public_view_key, public_spend_key, encrypted_view_priv_key')
     .eq('id', parsed.data.walletId)
     .eq('user_id', authResult.userId)
     .single();
+  const wallet = walletData as Pick<
+    DbWallet,
+    'id' | 'bitgo_wallet_id' | 'public_view_key' | 'public_spend_key' | 'encrypted_view_priv_key'
+  > | null;
 
   if (!wallet) {
     return NextResponse.json(
@@ -41,7 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     // Fetch recent transfers from BitGo
     const transfers = await getWalletTransfers(wallet.bitgo_wallet_id, 50);
-    const detected = [];
+    const detected: DetectedPayment[] = [];
 
     for (const transfer of transfers as Record<string, unknown>[]) {
       // Extract ephemeral key from tx comment/label
@@ -69,15 +78,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .maybeSingle();
 
           if (!existing) {
+            const paymentInsert: DetectedPaymentInsert = {
+              wallet_id: wallet.id,
+              tx_hash: txid,
+              one_time_address: output.address,
+              ephemeral_public_key: ephemeralPublicKey,
+              amount_sats: output.value,
+            };
             const { data: payment } = await supabase
               .from('detected_payments')
-              .insert({
-                wallet_id: wallet.id,
-                tx_hash: txid,
-                one_time_address: output.address,
-                ephemeral_public_key: ephemeralPublicKey,
-                amount_sats: output.value,
-              })
+              .insert(paymentInsert as never)
               .select()
               .single();
             if (payment) detected.push(payment);

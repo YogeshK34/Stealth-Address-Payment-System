@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@stealth/db';
+import { getSupabaseAdmin, type Wallet as DbWallet } from '@stealth/db';
 import { getWalletBalance } from '@stealth/bitgo-client';
 import { requireAuth } from '@/lib/auth';
 
@@ -12,12 +12,13 @@ export async function GET(
   if (!authResult.ok) return authResult.response;
 
   const supabase = getSupabaseAdmin();
-  const { data: wallet, error } = await supabase
+  const { data: walletData, error } = await supabase
     .from('wallets')
     .select('id, bitgo_wallet_id')
     .eq('id', params.id)
     .eq('user_id', authResult.userId)
     .single();
+  const wallet = walletData as Pick<DbWallet, 'id' | 'bitgo_wallet_id'> | null;
 
   if (error || !wallet) {
     return NextResponse.json(

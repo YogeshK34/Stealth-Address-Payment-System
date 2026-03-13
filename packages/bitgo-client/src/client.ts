@@ -1,9 +1,16 @@
-import BitGo from 'bitgo';
+type BitGoModule = typeof import('bitgo');
 
-let _bitgo: InstanceType<typeof BitGo.BitGo> | null = null;
+function loadBitGo(): BitGoModule {
+  const runtimeRequire = (0, eval)('require') as NodeRequire;
+  return runtimeRequire('bitgo') as BitGoModule;
+}
 
-export function getBitGoInstance(): InstanceType<typeof BitGo.BitGo> {
+let _bitgo: InstanceType<BitGoModule['BitGo']> | null = null;
+
+export function getBitGoInstance(): InstanceType<BitGoModule['BitGo']> {
   if (_bitgo) return _bitgo;
+
+  const BitGo = loadBitGo();
 
   const env = (process.env['BITGO_ENV'] ?? 'test') as 'test' | 'prod';
   _bitgo = new BitGo.BitGo({ env });

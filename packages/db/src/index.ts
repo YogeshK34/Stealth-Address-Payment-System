@@ -1,4 +1,4 @@
-export { createSupabaseClient, getSupabaseClient, getSupabaseAdmin } from './client.js';
+export { createSupabaseClient, getSupabaseClient, getSupabaseAdmin } from './client';
 export type {
   Database,
   Profile,
@@ -9,4 +9,4 @@ export type {
   DetectedPayment,
   DetectedPaymentInsert,
   ScannerState,
-} from './database.types.js';
+} from './database.types';

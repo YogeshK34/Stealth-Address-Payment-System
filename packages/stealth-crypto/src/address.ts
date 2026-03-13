@@ -1,7 +1,7 @@
 import { bytesToHex, hexToBytes } from '@stealth/shared';
 import type { DerivedOneTimeAddress, StealthAddress } from '@stealth/shared';
 import * as secp from '@noble/secp256k1';
-import { hashPoint, pointAdd, scalarBaseMultHex, scalarMult } from './keygen.js';
+import { hashPoint, pointAdd, scalarBaseMultHex, scalarMult } from './keygen';
 
 /**
  * Sender: derive a one-time address P from the receiver's stealth address.
