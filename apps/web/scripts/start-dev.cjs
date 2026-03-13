@@ -49,11 +49,6 @@ async function main() {
     console.log(`[web:dev] Starting Next.js on ${selectedPort}`);
   }
 
-<<<<<<< HEAD
-=======
-  const nextCliPath = require.resolve('next/dist/bin/next');
-
->>>>>>> 88ab701 (updated with favicon and logo)
   const child = spawn(process.execPath, [nextCliPath, 'dev', '--port', String(selectedPort)], {
     stdio: 'inherit',
     env: {
