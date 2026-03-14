@@ -7,7 +7,7 @@ const bitgo = new BitGoJS.BitGo({
 
 const checkWalletBalance = async () => {
 const wallet = await bitgo.coin("tbtc").wallets().get({
-	id: "69b2669dadde7fcd17eb37c46ee964be"
+	id: "69b52976c5e246bcfad88f9958950827"
 });
 
 
