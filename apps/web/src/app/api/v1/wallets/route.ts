@@ -106,7 +106,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { viewingPrivateKey, viewingPublicKey, spendingPrivateKey, spendingPublicKey } =
       generateRandomStealthMetaAddress();
 
-    const coin = getBitGoCoin(network);
+    const coin = await getBitGoCoin(network);
     const bitgoWalletResult = await coin.wallets().generateWallet({
       label,
       passphrase,

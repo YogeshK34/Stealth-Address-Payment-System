@@ -119,7 +119,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // 3. Broadcast via BitGo.
-    const coin = getBitGoCoin(wallet.network);
+    const coin = await getBitGoCoin(wallet.network);
     const senderWallet = await coin.wallets().get({ id: wallet.bitgo_wallet_id });
 
     const bitgoResult = await (

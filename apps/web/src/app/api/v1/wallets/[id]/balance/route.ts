@@ -52,7 +52,7 @@ export async function GET(
   }
 
   try {
-    const coin = getBitGoCoin(wallet.network);
+    const coin = await getBitGoCoin(wallet.network);
     const bitgoWallet = await coin.wallets().get({ id: wallet.bitgo_wallet_id });
     const source = bitgoWallet as {
       balanceString?: string;

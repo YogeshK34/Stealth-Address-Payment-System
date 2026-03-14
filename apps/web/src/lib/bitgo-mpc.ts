@@ -68,7 +68,7 @@ function readWalletDetails(wallet: BitGoWalletShape): BitGoMpcWalletDetails {
 }
 
 export async function fetchTbtcWallet(walletId: string): Promise<BitGoMpcWalletDetails> {
-  const coin = getBitGoCoin('tbtc');
+  const coin = await getBitGoCoin('tbtc');
   const wallet = (await coin.wallets().get({ id: walletId })) as unknown as BitGoWalletShape;
   return readWalletDetails(wallet);
 }
@@ -77,7 +77,7 @@ export async function createTbtcMpcWallet(params: {
   label: string;
   passphrase: string;
 }): Promise<BitGoMpcCreateResult> {
-  const coin = getBitGoCoin('tbtc');
+  const coin = await getBitGoCoin('tbtc');
 
   const generated = await coin.wallets().generateWallet({
     label: params.label,
@@ -108,7 +108,7 @@ export async function createTbtcMpcWallet(params: {
 }
 
 export async function createTbtcReceiveAddress(walletId: string): Promise<string> {
-  const coin = getBitGoCoin('tbtc');
+  const coin = await getBitGoCoin('tbtc');
   const wallet = (await coin.wallets().get({ id: walletId })) as {
     createAddress: (options?: Record<string, unknown>) => Promise<{ address?: string }>;
   };
