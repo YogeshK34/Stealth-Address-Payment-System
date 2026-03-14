@@ -10,7 +10,7 @@ export async function createBitGoWallet(
   label: string,
   passphrase: string
 ): Promise<{ walletId: string; address: string }> {
-  const bitgo = getBitGoInstance();
+  const bitgo = await getBitGoInstance();
   const coin = bitgo.coin(COIN);
   const enterpriseId = process.env['BITGO_ENTERPRISE_ID'];
 
@@ -36,7 +36,7 @@ export async function createBitGoWallet(
  * Fetch an existing BitGo wallet by ID.
  */
 export async function getBitGoWallet(walletId: string): Promise<unknown> {
-  const bitgo = getBitGoInstance();
+  const bitgo = await getBitGoInstance();
   return bitgo.coin(COIN).wallets().get({ id: walletId });
 }
 
@@ -44,7 +44,7 @@ export async function getBitGoWallet(walletId: string): Promise<unknown> {
  * Get the confirmed + unconfirmed balance for a wallet.
  */
 export async function getWalletBalance(walletId: string): Promise<WalletBalance> {
-  const bitgo = getBitGoInstance();
+  const bitgo = await getBitGoInstance();
   const wallet = await bitgo.coin(COIN).wallets().get({ id: walletId });
   const bal = wallet as unknown as {
     spendableBalance: number;
@@ -64,7 +64,7 @@ export async function getWalletBalance(walletId: string): Promise<WalletBalance>
  * List all wallets for the enterprise.
  */
 export async function listWallets(): Promise<unknown[]> {
-  const bitgo = getBitGoInstance();
+  const bitgo = await getBitGoInstance();
   const result = await bitgo.coin(COIN).wallets().list({});
   return (result as { wallets: unknown[] }).wallets ?? [];
 }

@@ -1,78 +1,424 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { apiClient } from '@/lib/api';
+
+type WalletOption = {
+  id: string;
+  walletId: string;
+  walletLabel: string;
+};
+
+type WalletListResponse = {
+  data: { metadata: WalletOption[] };
+};
+
+type PrepareResponse = {
+  data: {
+    stealthAddress: string;
+    ephemeralPublicKey: string;
+    viewTag: string;
+    amountSats: number;
+    announcePayload?: unknown;
+  };
+};
+
+type SendResponse = {
+  data: {
+    txHash: string;
+    stealthAddress: string;
+    status: string;
+  };
+};
+
+type Step = 'form' | 'confirm' | 'sending' | 'success' | 'error';
+
 export default function SendPage(): React.JSX.Element {
-  return (
-    <div className="grid gap-6 lg:grid-cols-[1.05fr,0.95fr]">
-      <div className="space-y-6">
+  // Wallet selector
+  const [wallets, setWallets] = useState<WalletOption[]>([]);
+  const [loadingWallets, setLoadingWallets] = useState(true);
+
+  // Form fields
+  const [senderWalletId, setSenderWalletId] = useState('');
+  const [metaAddress, setMetaAddress] = useState('');
+  const [amountSats, setAmountSats] = useState('');
+  const [walletPassphrase, setWalletPassphrase] = useState('');
+
+  // Flow state
+  const [step, setStep] = useState<Step>('form');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Prepared data
+  const [prepared, setPrepared] = useState<PrepareResponse['data'] | null>(null);
+
+  // Send result
+  const [result, setResult] = useState<SendResponse['data'] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await apiClient.get<WalletListResponse>('/wallets/mpc');
+        const list = data.data.metadata ?? [];
+        setWallets(list);
+        if (list[0]) setSenderWalletId(list[0].walletId);
+      } catch {
+        // wallets will remain empty
+      } finally {
+        setLoadingWallets(false);
+      }
+    })();
+  }, []);
+
+  const handlePrepare = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+
+    try {
+      const { data } = await apiClient.post<PrepareResponse>('/payments/prepare', {
+        senderWalletId,
+        receiverStealthMetaAddressURI: metaAddress,
+        amountSats: Number(amountSats),
+      });
+      setPrepared(data.data);
+      setStep('confirm');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
+          ?.message ?? 'Failed to prepare payment.';
+      setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!prepared) return;
+    setError(null);
+    setStep('sending');
+    setBusy(true);
+
+    try {
+      const { data } = await apiClient.post<SendResponse>('/payments/send', {
+        senderWalletId,
+        stealthAddress: prepared.stealthAddress,
+        ephemeralPublicKey: prepared.ephemeralPublicKey,
+        viewTag: prepared.viewTag,
+        amountSats: Number(amountSats),
+        walletPassphrase,
+      });
+      setResult(data.data);
+      setStep('success');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
+          ?.message ?? 'Transaction failed.';
+      setError(msg);
+      setStep('error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetForm = () => {
+    setStep('form');
+    setPrepared(null);
+    setResult(null);
+    setError(null);
+    setMetaAddress('');
+    setAmountSats('');
+    setWalletPassphrase('');
+  };
+
+  // ─── Form step ──────────────────────────────────────────
+  if (step === 'form') {
+    return (
+      <div className="grid gap-6 lg:grid-cols-[1.05fr,0.95fr]">
+        <div className="space-y-6">
+          <div>
+            <h1 className="app-section-title">Send stealth payment</h1>
+            <p className="mt-2 text-sm leading-7 text-white/55 md:text-base">
+              Enter the receiver&apos;s stealth meta-address and amount. A unique one-time address
+              will be derived on the backend — the receiver&apos;s real wallet is never exposed.
+            </p>
+          </div>
+
+          <form
+            className="app-shell-panel space-y-4 rounded-[1.75rem] p-6"
+            onSubmit={handlePrepare}
+          >
+            {/* Wallet selector */}
+            <div className="space-y-1">
+              <label className="text-sm font-light text-white/80" htmlFor="wallet">
+                Sender wallet
+              </label>
+              {loadingWallets ? (
+                <p className="text-sm text-white/40">Loading wallets...</p>
+              ) : wallets.length === 0 ? (
+                <p className="text-sm text-amber-200">
+                  No wallets found. Create one from the dashboard first.
+                </p>
+              ) : (
+                <select
+                  id="wallet"
+                  value={senderWalletId}
+                  onChange={(e) => setSenderWalletId(e.target.value)}
+                  className="input-premium w-full"
+                >
+                  {wallets.map((w) => (
+                    <option key={w.walletId} value={w.walletId}>
+                      {w.walletLabel} ({w.walletId.slice(0, 8)}...)
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Meta address */}
+            <div className="space-y-1">
+              <label className="text-sm font-light text-white/80" htmlFor="metaAddress">
+                Receiver stealth meta-address (ERC-5564)
+              </label>
+              <input
+                id="metaAddress"
+                type="text"
+                required
+                placeholder="st:eth:0x..."
+                value={metaAddress}
+                onChange={(e) => setMetaAddress(e.target.value)}
+                className="input-premium font-mono"
+              />
+              <p className="text-xs text-white/35">
+                Format: st:&lt;chain&gt;:0x&lt;132 hex chars&gt;
+              </p>
+            </div>
+
+            {/* Amount */}
+            <div className="space-y-1">
+              <label className="text-sm font-light text-white/80" htmlFor="amount">
+                Amount (satoshis)
+              </label>
+              <input
+                id="amount"
+                type="number"
+                min="1"
+                required
+                placeholder="100000"
+                value={amountSats}
+                onChange={(e) => setAmountSats(e.target.value)}
+                className="input-premium"
+              />
+            </div>
+
+            {/* Passphrase */}
+            <div className="space-y-1">
+              <label className="text-sm font-light text-white/80" htmlFor="passphrase">
+                Wallet passphrase
+              </label>
+              <input
+                id="passphrase"
+                type="password"
+                required
+                placeholder="Your wallet passphrase"
+                value={walletPassphrase}
+                onChange={(e) => setWalletPassphrase(e.target.value)}
+                className="input-premium"
+              />
+            </div>
+
+            {error && <p className="text-sm text-rose-300">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={busy || wallets.length === 0}
+              className="button-premium w-full"
+            >
+              {busy ? 'Deriving stealth address...' : 'Prepare payment'}
+            </button>
+          </form>
+        </div>
+
+        {/* Right panel — steps */}
+        <div className="app-shell-panel rounded-[1.75rem] p-6">
+          <div className="text-sm font-light uppercase tracking-[0.22em] text-violet-100/70">
+            How it works
+          </div>
+          <div className="mt-5 space-y-4">
+            {[
+              "You enter the receiver's stealth meta-address. Their real wallet stays hidden.",
+              'The backend derives a one-time stealth address using ERC-5564 cryptography.',
+              'You review the derived address and confirm. Funds are sent via BitGo.',
+              "An ERC-5564 announcement is prepared so the receiver's scanner can detect the payment.",
+            ].map((text, index) => (
+              <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="text-xs uppercase tracking-[0.2em] text-white/35">
+                  Step 0{index + 1}
+                </div>
+                <p className="mt-2 text-sm leading-7 text-white/60">{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Confirm step ───────────────────────────────────────
+  if (step === 'confirm' && prepared) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
         <div>
-          <h1 className="app-section-title">Send stealth payment</h1>
-          <p className="mt-2 text-sm leading-7 text-white/55 md:text-base">
-            Enter the receiver&apos;s stealth address and amount. A unique one-time address will be
-            derived automatically.
+          <h1 className="app-section-title">Confirm stealth payment</h1>
+          <p className="mt-2 text-sm leading-7 text-white/55">
+            Review the derived stealth address below. The receiver&apos;s real wallet is never
+            revealed. Once you confirm, funds will be sent.
           </p>
         </div>
 
-        {/* TODO: wire up useSendPayment mutation */}
-        <form className="app-shell-panel space-y-4 rounded-[1.75rem] p-6">
-          <div className="space-y-1">
-            <label className="text-sm font-light text-white/80" htmlFor="viewKey">
-              Receiver Public View Key (A)
-            </label>
-            <input
-              id="viewKey"
-              type="text"
-              placeholder="02abc..."
-              className="input-premium font-mono"
-            />
+        <div className="app-shell-panel space-y-5 rounded-[1.75rem] p-6">
+          <div>
+            <span className="text-xs font-light uppercase tracking-wide text-white/40">
+              One-time stealth address
+            </span>
+            <p className="mt-2 break-all rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/5 p-4 font-mono text-sm text-fuchsia-100">
+              {prepared.stealthAddress}
+            </p>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-light text-white/80" htmlFor="spendKey">
-              Receiver Public Spend Key (B)
-            </label>
-            <input
-              id="spendKey"
-              type="text"
-              placeholder="03def..."
-              className="input-premium font-mono"
-            />
+          <div>
+            <span className="text-xs font-light uppercase tracking-wide text-white/40">
+              Ephemeral public key (R)
+            </span>
+            <p className="mt-2 break-all rounded-2xl border border-white/10 bg-black/20 p-4 font-mono text-sm text-white/70">
+              {prepared.ephemeralPublicKey}
+            </p>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-light text-white/80" htmlFor="amount">
-              Amount (satoshis)
-            </label>
-            <input
-              id="amount"
-              type="number"
-              min="1000"
-              placeholder="100000"
-              className="input-premium"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <span className="text-xs font-light uppercase tracking-wide text-white/40">
+                View tag
+              </span>
+              <p className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-4 font-mono text-sm text-amber-100">
+                {prepared.viewTag}
+              </p>
+            </div>
+            <div>
+              <span className="text-xs font-light uppercase tracking-wide text-white/40">
+                Amount
+              </span>
+              <p className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/80">
+                {prepared.amountSats.toLocaleString()} sats
+              </p>
+            </div>
           </div>
 
-          <button type="submit" className="button-premium w-full">
-            Derive Address & Send
-          </button>
-        </form>
+          <div className="rounded-2xl border border-emerald-400/12 bg-emerald-400/8 p-4 text-sm leading-7 text-emerald-100/80">
+            This address is unique to this transaction. It cannot be linked to the receiver&apos;s
+            identity or any previous payment.
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setStep('form');
+                setError(null);
+              }}
+              className="rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-sm font-light text-white/75 transition hover:bg-white/10"
+            >
+              Back
+            </button>
+            <button type="button" onClick={handleSend} className="button-premium">
+              Confirm & send
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Sending step ───────────────────────────────────────
+  if (step === 'sending') {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-fuchsia-400/30 border-t-fuchsia-400" />
+          <p className="text-sm text-white/55">Broadcasting transaction via BitGo...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Success step ───────────────────────────────────────
+  if (step === 'success' && result) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-3xl text-emerald-300">
+            &#10003;
+          </div>
+          <h1 className="app-section-title">Payment sent</h1>
+          <p className="mt-2 text-sm leading-7 text-white/55">
+            Funds have been broadcast to the one-time stealth address.
+          </p>
+        </div>
+
+        <div className="app-shell-panel space-y-4 rounded-[1.75rem] p-6">
+          <div>
+            <span className="text-xs font-light uppercase tracking-wide text-white/40">
+              Transaction hash
+            </span>
+            <p className="mt-2 break-all rounded-2xl border border-white/10 bg-black/20 p-4 font-mono text-sm text-white/70">
+              {result.txHash}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs font-light uppercase tracking-wide text-white/40">
+              Stealth address
+            </span>
+            <p className="mt-2 break-all rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/5 p-4 font-mono text-sm text-fuchsia-100">
+              {result.stealthAddress}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 rounded-2xl border border-amber-400/12 bg-amber-400/8 px-4 py-3 text-sm text-amber-100/80">
+            Status: {result.status}
+          </div>
+        </div>
+
+        <button type="button" onClick={resetForm} className="button-premium w-full">
+          Send another payment
+        </button>
+      </div>
+    );
+  }
+
+  // ─── Error step ─────────────────────────────────────────
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div className="text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-rose-400/25 bg-rose-400/10 text-3xl text-rose-300">
+          &#10007;
+        </div>
+        <h1 className="app-section-title">Transaction failed</h1>
+        <p className="mt-2 text-sm leading-7 text-rose-200/70">{error}</p>
       </div>
 
-      <div className="app-shell-panel rounded-[1.75rem] p-6">
-        <div className="text-sm font-light uppercase tracking-[0.22em] text-violet-100/70">
-          What happens next
-        </div>
-        <div className="mt-5 space-y-4">
-          {[
-            'A fresh ephemeral key is generated for this payment.',
-            'A one-time destination address is derived from the receiver stealth pair.',
-            'The ephemeral public key is embedded so the receiver scanner can detect the payment.',
-          ].map((step, index) => (
-            <div key={step} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-                Step 0{index + 1}
-              </div>
-              <p className="mt-2 text-sm leading-7 text-white/60">{step}</p>
-            </div>
-          ))}
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        <button type="button" onClick={resetForm} className="button-premium w-full">
+          Start over
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setStep('confirm');
+            setError(null);
+          }}
+          className="rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-sm font-light text-white/75 transition hover:bg-white/10"
+        >
+          Retry send
+        </button>
       </div>
     </div>
   );

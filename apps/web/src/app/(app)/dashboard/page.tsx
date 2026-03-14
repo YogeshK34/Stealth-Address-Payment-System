@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/lib/api';
 
 type WalletSummary = {
@@ -33,6 +33,20 @@ type LinkWalletResponse = {
 };
 
 type SetupMode = 'choose' | 'create' | 'link';
+
+type PaymentRecord = {
+  id: string;
+  walletId: string;
+  stealthAddress: string | null;
+  amountSats: number;
+  txHash: string;
+  status: string;
+  createdAt: string;
+};
+
+type PaymentHistoryResponse = {
+  data: PaymentRecord[];
+};
 
 const CUSTODY_NOTICE =
   "This wallet is created using BitGo's MPC (Multi-Party Computation) infrastructure. Private keys are split into cryptographic shares and never exist in a single place. Our platform does not store private keys and cannot move funds independently.";
@@ -221,6 +235,22 @@ export default function DashboardPage(): React.JSX.Element {
   const [linking, setLinking] = useState(false);
   const [linkWarning, setLinkWarning] = useState<string | null>(null);
 
+  // Payment history state
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+
+  const refreshPayments = useCallback(async () => {
+    setPaymentsLoading(true);
+    try {
+      const { data } = await apiClient.get<PaymentHistoryResponse>('/payments/history');
+      setPayments(data.data ?? []);
+    } catch {
+      // silently fail – history is non-critical
+    } finally {
+      setPaymentsLoading(false);
+    }
+  }, []);
+
   const refreshWallets = async () => {
     const { data } = await apiClient.get<WalletListResponse>('/wallets/mpc');
     const newWallets: WalletMetadata[] = data.data.metadata;
@@ -236,14 +266,14 @@ export default function DashboardPage(): React.JSX.Element {
   useEffect(() => {
     (async () => {
       try {
-        await refreshWallets();
+        await Promise.all([refreshWallets(), refreshPayments()]);
       } catch {
         setError('Failed to load wallet data.');
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [refreshPayments]);
 
   const activeWallet = wallets.find((w) => w.walletId === selectedWalletId) ?? wallets[0] ?? null;
   const activeSummary =
@@ -443,6 +473,65 @@ export default function DashboardPage(): React.JSX.Element {
             </div>
           )}
         </div>
+      </section>
+
+      {/* Payment history */}
+      <section className="app-shell-panel rounded-[1.75rem] p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-light text-white">Recent stealth payments</h2>
+          <button
+            onClick={refreshPayments}
+            disabled={paymentsLoading}
+            className="text-xs text-white/45 hover:text-white/70"
+          >
+            {paymentsLoading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+
+        {paymentsLoading && payments.length === 0 ? (
+          <p className="mt-4 text-sm text-white/40">Loading history...</p>
+        ) : payments.length === 0 ? (
+          <p className="mt-4 text-sm text-white/40">
+            No outgoing stealth payments yet. Send one from the Send page.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {payments.map((p) => (
+              <div
+                key={p.id}
+                className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs text-white/50">
+                    {p.txHash.slice(0, 10)}...{p.txHash.slice(-8)}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      p.status === 'confirmed'
+                        ? 'border border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+                        : p.status === 'failed'
+                          ? 'border border-rose-400/20 bg-rose-400/10 text-rose-200'
+                          : 'border border-amber-400/20 bg-amber-400/10 text-amber-200'
+                    }`}
+                  >
+                    {p.status}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-white/70">
+                  <span>{p.amountSats.toLocaleString()} sats</span>
+                  <span className="text-xs text-white/35">
+                    {new Date(p.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                {p.stealthAddress && (
+                  <p className="mt-1 truncate font-mono text-xs text-fuchsia-100/50">
+                    To: {p.stealthAddress}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['@prisma/client'],
+    serverComponentsExternalPackages: ['@prisma/client', 'bitgo'],
   },
-  transpilePackages: ['@stealth/shared', '@stealth/crypto', '@stealth/bitgo-client', '@stealth/db'],
+  transpilePackages: ['@stealth/shared', '@stealth/crypto', '@stealth/db'],
   webpack: (config, { isServer }) => {
     if (isServer) {
       const prev = Array.isArray(config.externals) ? config.externals : [config.externals].filter(Boolean);

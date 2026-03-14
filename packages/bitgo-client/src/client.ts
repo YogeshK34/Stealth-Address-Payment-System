@@ -1,11 +1,11 @@
-import * as bitgoLib from 'bitgo';
-
 type BitGoModule = typeof import('bitgo');
 
 let _bitgo: InstanceType<BitGoModule['BitGo']> | null = null;
 
-export function getBitGoInstance(): InstanceType<BitGoModule['BitGo']> {
+export async function getBitGoInstance(): Promise<InstanceType<BitGoModule['BitGo']>> {
   if (_bitgo) return _bitgo;
+
+  const bitgoLib = await import('bitgo');
 
   const env = (process.env['BITGO_ENV'] ?? 'test') as 'test' | 'prod';
   _bitgo = new bitgoLib.BitGo({ env });

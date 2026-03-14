@@ -23,7 +23,7 @@ export interface BroadcastResult {
  * retrieved by the scanner.
  */
 export async function sendStealthTransaction(opts: BuildTxOptions): Promise<BroadcastResult> {
-  const bitgo = getBitGoInstance();
+  const bitgo = await getBitGoInstance();
   const wallet = await bitgo.coin(COIN).wallets().get({ id: opts.walletId });
 
   const result = await (
@@ -49,7 +49,7 @@ export async function sendStealthTransaction(opts: BuildTxOptions): Promise<Broa
  * Fetch recent transfers for a wallet (used by scanner).
  */
 export async function getWalletTransfers(walletId: string, limit = 25): Promise<unknown[]> {
-  const bitgo = getBitGoInstance();
+  const bitgo = await getBitGoInstance();
   const wallet = await bitgo.coin(COIN).wallets().get({ id: walletId });
   const result = await (
     wallet as unknown as {
