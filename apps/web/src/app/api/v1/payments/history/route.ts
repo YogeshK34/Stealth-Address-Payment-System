@@ -61,7 +61,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         .select(
           'id, wallet_id, one_time_address, ephemeral_public_key, amount_sats, tx_hash, status, created_at'
         )
-        .eq('wallet_id', walletRow?.id ?? walletId)
+        .eq('wallet_id', (walletRow as { id?: string } | null)?.id ?? walletId)
         .eq('direction', 'send')
         .order('created_at', { ascending: false });
 

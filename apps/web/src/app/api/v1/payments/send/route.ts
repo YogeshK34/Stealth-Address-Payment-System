@@ -103,16 +103,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // 2. Store transaction record via Supabase.
-    const { data: tx, error: txErr } = await admin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tx, error: txErr } = await (admin as any)
       .from('transactions')
       .insert({
         wallet_id: walletData.id,
         tx_hash: bitgoResult.txid,
-        direction: 'send' as const,
+        direction: 'send',
         amount_sats: amountSats,
         ephemeral_public_key: ephemeralPublicKey,
         one_time_address: stealthAddress,
-        status: 'pending' as const,
+        status: 'pending',
       })
       .select('id, tx_hash, amount_sats, status, one_time_address, ephemeral_public_key')
       .single();
