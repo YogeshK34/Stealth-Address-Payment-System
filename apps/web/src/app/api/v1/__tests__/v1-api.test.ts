@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   prepareAnnounceMock: vi.fn(),
   watchAnnouncementsForUserMock: vi.fn(),
 }));
-
 vi.mock('@prisma/client', () => ({
   Prisma: {
     sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),

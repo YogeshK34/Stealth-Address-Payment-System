@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@stealth/db';
-import { createWalletForUser } from '@/lib/wallets-mpc';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -36,32 +35,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    let wallet: Awaited<ReturnType<typeof createWalletForUser>> | null = null;
-    let walletProvisioningWarning: string | null = null;
-
-    if (data.user?.id) {
-      try {
-        wallet = await createWalletForUser({
-          userId: data.user.id,
-          label: `TBTC MPC Wallet (${email.split('@')[0] || 'user'})`,
-          passphrase: password,
-        });
-      } catch (walletError) {
-        console.error('[POST /api/v1/auth/register] wallet provisioning failed', walletError);
-        walletProvisioningWarning =
-          'Account created, but wallet provisioning is pending. You can create or link your MPC wallet from the dashboard.';
-      }
-    }
-
     return NextResponse.json(
       {
         data: {
           user: { id: data.user?.id, email: data.user?.email },
-          session: data.session,
           message: 'Account created. You can now log in.',
-          wallet: wallet?.summary ?? null,
-          walletMetadata: wallet?.metadata ?? null,
-          walletProvisioningWarning,
         },
       },
       { status: 201 }

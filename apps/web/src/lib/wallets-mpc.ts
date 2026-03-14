@@ -238,7 +238,7 @@ export async function getUserWalletSummaries(userId: string): Promise<WalletSumm
           walletLabel: row.walletLabel,
           keys: [],
           createdAt: row.createdAt,
-          isMpc: row.multisigType === 'tss',
+          isMpc: row.multisigType === 'tss' || row.multisigType === 'onchain',
         };
       }
     })
