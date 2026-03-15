@@ -1,70 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Shield, LogIn } from 'lucide-react';
-import { apiClient } from '@/lib/api';
-import { useAuthStore } from '@/store/auth';
+import { Shield } from 'lucide-react';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 
-type LoginResponse = {
-  data: {
-    token: string;
-    refreshToken: string;
-    expiresAt: number;
-    user: {
-      id: string;
-      email: string;
-    };
-  };
-};
-
 export default function LoginClientPage(): React.JSX.Element {
-  const router = useRouter();
-  const params = useSearchParams();
-  const setAuth = useAuthStore((state) => state.setAuth);
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [pending, setPending] = useState(false);
   const [googlePending, setGooglePending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const nextUrl = useMemo(() => {
-    const next = params.get('next');
-    if (!next || !next.startsWith('/')) return '/dashboard';
-    return next;
-  }, [params]);
-
-  const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPending(true);
-    setError(null);
-
-    try {
-      const { data } = await apiClient.post<LoginResponse>('/auth/login', {
-        email,
-        password,
-      });
-
-      setAuth(
-        {
-          id: data.data.user.id,
-          email: data.data.user.email,
-        },
-        data.data.token,
-        data.data.refreshToken,
-        data.data.expiresAt
-      );
-
-      router.replace(nextUrl);
-    } catch {
-      setError('Invalid email or password.');
-    } finally {
-      setPending(false);
-    }
-  };
 
   const handleGoogleLogin = async () => {
     setGooglePending(true);
@@ -105,53 +48,7 @@ export default function LoginClientPage(): React.JSX.Element {
           </div>
         </div>
 
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm text-white/75">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="input-premium"
-              placeholder="you@example.com"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm text-white/75">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="input-premium"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error ? <p className="text-sm text-rose-300">{error}</p> : null}
-
-          <button
-            type="submit"
-            disabled={pending}
-            className="button-premium w-full disabled:opacity-60"
-          >
-            <LogIn className="h-4 w-4" />
-            {pending ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-
-        <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-white/10" />
-          <span className="text-xs uppercase tracking-widest text-white/35">or</span>
-          <div className="h-px flex-1 bg-white/10" />
-        </div>
+        {error ? <p className="mb-4 text-sm text-rose-300">{error}</p> : null}
 
         <button
           type="button"
