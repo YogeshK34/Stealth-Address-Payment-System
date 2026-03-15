@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { stealthClient } from '@/lib/stealthClient';
 import { prisma } from '@/lib/prisma';
@@ -64,12 +63,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const walletRows = await prisma.$queryRaw<WalletKeysRow[]>(Prisma.sql`
-    SELECT id, public_spend_key, encrypted_view_priv_key
+  const walletRows = await prisma.$queryRaw<WalletKeysRow[]>(
+    `SELECT id, public_spend_key, encrypted_view_priv_key
     FROM wallets
-    WHERE id = ${parsed.data.walletId}
-    LIMIT 1
-  `);
+    WHERE id = '${parsed.data.walletId}'
+    LIMIT 1`
+  );
 
   const wallet = walletRows[0];
 
@@ -100,16 +99,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           if (!ephemeralPublicKey || !stealthAddress || !txHash) continue;
 
           // Deduplicate by tx_hash.
-          const existing = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-            SELECT id
+          const existing = await prisma.$queryRaw<Array<{ id: string }>>(
+            `SELECT id
             FROM detected_payments
-            WHERE tx_hash = ${txHash}
-            LIMIT 1
-          `);
+            WHERE tx_hash = '${txHash}'
+            LIMIT 1`
+          );
 
           if (existing.length === 0) {
-            const paymentRows = await prisma.$queryRaw<DetectedPaymentRow[]>(Prisma.sql`
-              INSERT INTO detected_payments (
+            const paymentRows = await prisma.$queryRaw<DetectedPaymentRow[]>(
+              `INSERT INTO detected_payments (
                 wallet_id,
                 tx_hash,
                 one_time_address,
@@ -117,14 +116,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 amount_sats
               )
               VALUES (
-                ${wallet.id},
-                ${txHash},
-                ${stealthAddress},
-                ${ephemeralPublicKey},
-                ${0}
+                '${wallet.id}',
+                '${txHash}',
+                '${stealthAddress}',
+                '${ephemeralPublicKey}',
+                0
               )
-              RETURNING id, wallet_id, tx_hash, one_time_address, ephemeral_public_key, amount_sats, created_at
-            `);
+              RETURNING id, wallet_id, tx_hash, one_time_address, ephemeral_public_key, amount_sats, created_at`
+            );
 
             if (paymentRows[0]) detected.push(paymentRows[0]);
           }
@@ -177,18 +176,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     let payments: DetectedPaymentRow[];
 
     if (walletId) {
-      payments = await prisma.$queryRaw<DetectedPaymentRow[]>(Prisma.sql`
-        SELECT id, wallet_id, tx_hash, one_time_address, ephemeral_public_key, amount_sats, created_at
+      payments = await prisma.$queryRaw<DetectedPaymentRow[]>(
+        `SELECT id, wallet_id, tx_hash, one_time_address, ephemeral_public_key, amount_sats, created_at
         FROM detected_payments
-        WHERE wallet_id = ${walletId}
-        ORDER BY created_at DESC
-      `);
+        WHERE wallet_id = '${walletId}'
+        ORDER BY created_at DESC`
+      );
     } else {
-      payments = await prisma.$queryRaw<DetectedPaymentRow[]>(Prisma.sql`
-        SELECT id, wallet_id, tx_hash, one_time_address, ephemeral_public_key, amount_sats, created_at
+      payments = await prisma.$queryRaw<DetectedPaymentRow[]>(
+        `SELECT id, wallet_id, tx_hash, one_time_address, ephemeral_public_key, amount_sats, created_at
         FROM detected_payments
-        ORDER BY created_at DESC
-      `);
+        ORDER BY created_at DESC`
+      );
     }
 
     return NextResponse.json({ data: payments, meta: { timestamp: new Date().toISOString() } });

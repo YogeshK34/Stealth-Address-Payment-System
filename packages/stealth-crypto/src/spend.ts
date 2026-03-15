@@ -1,6 +1,6 @@
 // this function is when user had found one-time address and he wants to spend the money, so our function will generate the private key
 
-import { addScalars } from './keygen.js';
+import { addScalars } from './keygen';
 
 /**
  * Receiver: derive the private key for a detected one-time address.

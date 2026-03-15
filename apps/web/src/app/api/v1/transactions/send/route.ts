@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
 import { generateStealthAddress, VALID_SCHEME_ID } from '@scopelift/stealth-address-sdk';
 import { stealthClient } from '@/lib/stealthClient';
 import { getBitGoCoin } from '@/lib/bitgo';
@@ -76,12 +75,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     senderAddress,
   } = parsed.data;
 
-  const walletRows = await prisma.$queryRaw<WalletRow[]>(Prisma.sql`
-    SELECT id, bitgo_wallet_id, network
+  const walletRows = await prisma.$queryRaw<WalletRow[]>(
+    `SELECT id, bitgo_wallet_id, network
     FROM wallets
-    WHERE id = ${senderWalletId}
-    LIMIT 1
-  `);
+    WHERE id = '${senderWalletId}'
+    LIMIT 1`
+  );
 
   const wallet = walletRows[0];
   if (!wallet) {
@@ -139,8 +138,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // 4. Record transaction metadata.
-    const txRows = await prisma.$queryRaw<TxRow[]>(Prisma.sql`
-      INSERT INTO transactions (
+    const txRows = await prisma.$queryRaw<TxRow[]>(
+      `INSERT INTO transactions (
         wallet_id,
         tx_hash,
         direction,
@@ -150,16 +149,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         status
       )
       VALUES (
-        ${wallet.id},
-        ${bitgoResult.txid},
+        '${wallet.id}',
+        '${bitgoResult.txid}',
         'send',
         ${amountSats},
-        ${ephemeralPublicKey},
-        ${stealthAddress},
+        '${ephemeralPublicKey}',
+        '${stealthAddress}',
         'pending'
       )
-      RETURNING tx_hash, amount_sats, status, one_time_address, ephemeral_public_key
-    `);
+      RETURNING tx_hash, amount_sats, status, one_time_address, ephemeral_public_key`
+    );
 
     const tx = txRows[0];
     if (!tx) throw new Error('Failed to record transaction');

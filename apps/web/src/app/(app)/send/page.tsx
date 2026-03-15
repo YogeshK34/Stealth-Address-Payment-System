@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api';
+import { parseStealthMetaAddress } from '@/lib/stealth-meta-address';
 
 type WalletOption = {
   id: string;
@@ -15,11 +16,10 @@ type WalletListResponse = {
 
 type PrepareResponse = {
   data: {
-    stealthAddress: string;
-    ephemeralPublicKey: string;
+    stealthAddress: string; // Bitcoin P2WPKH address (tb1q…)
+    ephemeralPublicKey: string; // 66-char compressed hex
     viewTag: string;
     amountSats: number;
-    announcePayload?: unknown;
   };
 };
 
@@ -34,13 +34,13 @@ type SendResponse = {
 type Step = 'form' | 'confirm' | 'sending' | 'success' | 'error';
 
 export default function SendPage(): React.JSX.Element {
-  // Wallet selector
   const [wallets, setWallets] = useState<WalletOption[]>([]);
   const [loadingWallets, setLoadingWallets] = useState(true);
 
   // Form fields
   const [senderWalletId, setSenderWalletId] = useState('');
-  const [metaAddress, setMetaAddress] = useState('');
+  // Stealth meta-address pasted from the Receive page: st:btctest:0x<132hex>
+  const [stealthInputRaw, setStealthInputRaw] = useState('');
   const [amountSats, setAmountSats] = useState('');
   const [walletPassphrase, setWalletPassphrase] = useState('');
 
@@ -73,12 +73,23 @@ export default function SendPage(): React.JSX.Element {
   const handlePrepare = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setBusy(true);
 
+    // Parse the stealth meta-address: st:btctest:0x<viewKey_66hex><spendKey_66hex>
+    const parseResult = parseStealthMetaAddress(stealthInputRaw);
+    if (!parseResult) {
+      setError(
+        "Invalid stealth address. Paste the st:btctest:0x… address from the receiver's Receive page."
+      );
+      return;
+    }
+    const { viewKey: receiverViewKey, spendKey: receiverSpendKey } = parseResult;
+
+    setBusy(true);
     try {
       const { data } = await apiClient.post<PrepareResponse>('/payments/prepare', {
         senderWalletId,
-        receiverStealthMetaAddressURI: metaAddress,
+        receiverViewKey,
+        receiverSpendKey,
         amountSats: Number(amountSats),
       });
       setPrepared(data.data);
@@ -126,12 +137,12 @@ export default function SendPage(): React.JSX.Element {
     setPrepared(null);
     setResult(null);
     setError(null);
-    setMetaAddress('');
+    setStealthInputRaw('');
     setAmountSats('');
     setWalletPassphrase('');
   };
 
-  // ─── Form step ──────────────────────────────────────────
+  // --- Form step
   if (step === 'form') {
     return (
       <div className="grid gap-6 lg:grid-cols-[1.05fr,0.95fr]">
@@ -139,8 +150,8 @@ export default function SendPage(): React.JSX.Element {
           <div>
             <h1 className="app-section-title">Send stealth payment</h1>
             <p className="mt-2 text-sm leading-7 text-white/55 md:text-base">
-              Enter the receiver&apos;s stealth meta-address and amount. A unique one-time address
-              will be derived on the backend — the receiver&apos;s real wallet is never exposed.
+              Paste the receiver&apos;s stealth address and enter the amount. A unique one-time
+              Bitcoin address will be derived — the receiver&apos;s real wallet is never exposed.
             </p>
           </div>
 
@@ -154,7 +165,7 @@ export default function SendPage(): React.JSX.Element {
                 Sender wallet
               </label>
               {loadingWallets ? (
-                <p className="text-sm text-white/40">Loading wallets...</p>
+                <p className="text-sm text-white/40">Loading wallets…</p>
               ) : wallets.length === 0 ? (
                 <p className="text-sm text-amber-200">
                   No wallets found. Create one from the dashboard first.
@@ -168,29 +179,30 @@ export default function SendPage(): React.JSX.Element {
                 >
                   {wallets.map((w) => (
                     <option key={w.walletId} value={w.walletId}>
-                      {w.walletLabel} ({w.walletId.slice(0, 8)}...)
+                      {w.walletLabel} ({w.walletId.slice(0, 8)}…)
                     </option>
                   ))}
                 </select>
               )}
             </div>
 
-            {/* Meta address */}
+            {/* Stealth address input */}
             <div className="space-y-1">
-              <label className="text-sm font-light text-white/80" htmlFor="metaAddress">
-                Receiver stealth meta-address (ERC-5564)
+              <label className="text-sm font-light text-white/80" htmlFor="stealthAddr">
+                Receiver stealth address
               </label>
-              <input
-                id="metaAddress"
-                type="text"
+              <textarea
+                id="stealthAddr"
                 required
-                placeholder="st:eth:0x..."
-                value={metaAddress}
-                onChange={(e) => setMetaAddress(e.target.value)}
-                className="input-premium font-mono"
+                rows={3}
+                placeholder="st:btctest:0x… (copy from the receiver's Receive page)"
+                value={stealthInputRaw}
+                onChange={(e) => setStealthInputRaw(e.target.value)}
+                className="input-premium w-full resize-none font-mono text-xs"
               />
               <p className="text-xs text-white/35">
-                Format: st:&lt;chain&gt;:0x&lt;132 hex chars&gt;
+                Format: <span className="font-mono">st:btctest:0x&lt;132 hex chars&gt;</span> —
+                stealth meta-address from the receiver&apos;s Receive page.
               </p>
             </div>
 
@@ -234,7 +246,7 @@ export default function SendPage(): React.JSX.Element {
               disabled={busy || wallets.length === 0}
               className="button-premium w-full"
             >
-              {busy ? 'Deriving stealth address...' : 'Prepare payment'}
+              {busy ? 'Deriving one-time address…' : 'Prepare payment'}
             </button>
           </form>
         </div>
@@ -246,10 +258,10 @@ export default function SendPage(): React.JSX.Element {
           </div>
           <div className="mt-5 space-y-4">
             {[
-              "You enter the receiver's stealth meta-address. Their real wallet stays hidden.",
-              'The backend derives a one-time stealth address using ERC-5564 cryptography.',
-              'You review the derived address and confirm. Funds are sent via BitGo.',
-              "An ERC-5564 announcement is prepared so the receiver's scanner can detect the payment.",
+              "Paste the receiver's stealth meta-address (st:btctest:0x…). It encodes their public keys — their real wallet stays hidden.",
+              'The backend generates an ephemeral key and derives a unique one-time address via secp256k1 ECDH.',
+              'Review the derived tb1q… address and confirm. Funds are sent via BitGo.',
+              'The receiver can scan for the payment using their private view key.',
             ].map((text, index) => (
               <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <div className="text-xs uppercase tracking-[0.2em] text-white/35">
@@ -264,22 +276,22 @@ export default function SendPage(): React.JSX.Element {
     );
   }
 
-  // ─── Confirm step ───────────────────────────────────────
+  // --- Confirm step
   if (step === 'confirm' && prepared) {
     return (
       <div className="mx-auto max-w-2xl space-y-6">
         <div>
           <h1 className="app-section-title">Confirm stealth payment</h1>
           <p className="mt-2 text-sm leading-7 text-white/55">
-            Review the derived stealth address below. The receiver&apos;s real wallet is never
-            revealed. Once you confirm, funds will be sent.
+            Review the derived Bitcoin testnet address below. The receiver&apos;s real wallet is
+            never revealed. Once you confirm, funds will be sent via BitGo.
           </p>
         </div>
 
         <div className="app-shell-panel space-y-5 rounded-[1.75rem] p-6">
           <div>
             <span className="text-xs font-light uppercase tracking-wide text-white/40">
-              One-time stealth address
+              One-time Bitcoin address (tb1q…)
             </span>
             <p className="mt-2 break-all rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/5 p-4 font-mono text-sm text-fuchsia-100">
               {prepared.stealthAddress}
@@ -331,7 +343,7 @@ export default function SendPage(): React.JSX.Element {
               Back
             </button>
             <button type="button" onClick={handleSend} className="button-premium">
-              Confirm & send
+              Confirm &amp; send
             </button>
           </div>
         </div>
@@ -339,19 +351,19 @@ export default function SendPage(): React.JSX.Element {
     );
   }
 
-  // ─── Sending step ───────────────────────────────────────
+  // --- Sending step
   if (step === 'sending') {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-center">
           <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-fuchsia-400/30 border-t-fuchsia-400" />
-          <p className="text-sm text-white/55">Broadcasting transaction via BitGo...</p>
+          <p className="text-sm text-white/55">Broadcasting transaction via BitGo…</p>
         </div>
       </div>
     );
   }
 
-  // ─── Success step ───────────────────────────────────────
+  // --- Success step
   if (step === 'success' && result) {
     return (
       <div className="mx-auto max-w-2xl space-y-6">
@@ -361,7 +373,7 @@ export default function SendPage(): React.JSX.Element {
           </div>
           <h1 className="app-section-title">Payment sent</h1>
           <p className="mt-2 text-sm leading-7 text-white/55">
-            Funds have been broadcast to the one-time stealth address.
+            Funds have been broadcast to the one-time Bitcoin testnet address.
           </p>
         </div>
 
@@ -376,7 +388,7 @@ export default function SendPage(): React.JSX.Element {
           </div>
           <div>
             <span className="text-xs font-light uppercase tracking-wide text-white/40">
-              Stealth address
+              One-time stealth address
             </span>
             <p className="mt-2 break-all rounded-2xl border border-fuchsia-400/20 bg-fuchsia-400/5 p-4 font-mono text-sm text-fuchsia-100">
               {result.stealthAddress}
@@ -394,7 +406,7 @@ export default function SendPage(): React.JSX.Element {
     );
   }
 
-  // ─── Error step ─────────────────────────────────────────
+  // --- Error step
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="text-center">

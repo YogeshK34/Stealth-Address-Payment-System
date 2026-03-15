@@ -28,6 +28,8 @@
     --destructive-foreground: 210 40% 98%;
     --ring: 189 100% 58%;
     --radius: 1rem;
+    /* Tell the browser to use dark-themed native controls everywhere. */
+    color-scheme: dark;
   }
 
   .dark {
@@ -68,6 +70,12 @@
 
   html {
     scroll-behavior: smooth;
+  }
+
+  /* Native <select> option elements — dark background for browsers that support it */
+  option {
+    background-color: #13131a;
+    color: white;
   }
 
   ::selection {
@@ -116,7 +124,27 @@
   }
 
   .input-premium {
-    @apply w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-fuchsia-300/30 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/20;
+    @apply w-full rounded-2xl border border-white/10 bg-[#13131a] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-fuchsia-300/30 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/20;
+    color-scheme: dark;
+  }
+
+  /* Kill browser-autofill white/yellow wash on all inputs */
+  .input-premium:-webkit-autofill,
+  .input-premium:-webkit-autofill:hover,
+  .input-premium:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #13131a inset;
+    -webkit-text-fill-color: white;
+    caret-color: white;
+  }
+
+  /* Remove the number-input up/down spinners */
+  .input-premium::-webkit-inner-spin-button,
+  .input-premium::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .input-premium[type='number'] {
+    -moz-appearance: textfield;
   }
 
   .button-premium {

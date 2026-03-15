@@ -38,3 +38,32 @@ export function scanTransaction(
 
   return match ? { match: true, oneTimeAddress: derivedAddress, sharedSecret } : { match: false };
 }
+
+/**
+ * Receiver: derive the one-time public key and shared secret from an ephemeral public key R.
+ *
+ * Used when we already have the stored one-time Bitcoin address and want to check
+ * whether a transaction belongs to us by converting the derived pubkey to a Bitcoin
+ * address and comparing.
+ *
+ * Algorithm:
+ *   aR = a·R        (ECDH — same as sender's r·A)
+ *   S  = H(a·R)
+ *   P  = S·G + B    (one-time public key)
+ *
+ * @param ephemeralPublicKeyHex  R from transaction
+ * @param privateViewKeyHex      a (receiver private view key)
+ * @param publicSpendKey         B (receiver public spend key)
+ */
+export function deriveStealthOutput(
+  ephemeralPublicKeyHex: string,
+  privateViewKeyHex: string,
+  publicSpendKey: string
+): { oneTimePubKey: string; sharedSecret: string } {
+  const aR = scalarMult(privateViewKeyHex, ephemeralPublicKeyHex);
+  const S = hashPoint(hexToBytes(aR));
+  const sharedSecret = bytesToHex(S);
+  const SG = scalarBaseMultHex(sharedSecret);
+  const oneTimePubKey = pointAdd(SG, publicSpendKey);
+  return { oneTimePubKey, sharedSecret };
+}

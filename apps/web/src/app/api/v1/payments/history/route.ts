@@ -2,10 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
 import { getSupabaseAdmin } from '@stealth/db';
+import { checkTxStatuses } from '@/lib/tx-status';
 
 const querySchema = z.object({
   walletId: z.string().trim().min(1, 'walletId must not be empty').optional(),
 });
+
+type TxRow = {
+  id: string;
+  wallet_id: string;
+  one_time_address: string | null;
+  ephemeral_public_key: string | null;
+  amount_sats: number;
+  tx_hash: string;
+  direction: string;
+  status: string;
+  created_at: string;
+};
 
 // GET /api/v1/payments/history
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -32,13 +45,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const admin = getSupabaseAdmin();
 
   try {
+    let rows: TxRow[] = [];
+
     if (parsed.data.walletId) {
       const walletId = parsed.data.walletId;
 
-      // Verify the wallet belongs to the authenticated user.
-      const { data: walletRow } = await admin
+      const { data: walletRow } = await (admin as any)
         .from('wallets')
-        .select('user_id')
+        .select('id, user_id')
         .or(`id.eq.${walletId},wallet_id.eq.${walletId}`)
         .limit(1)
         .maybeSingle();
@@ -55,52 +69,77 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         );
       }
 
-      // Fetch transactions for this specific wallet.
-      const { data: payments, error: txErr } = await admin
+      const { data: payments, error: txErr } = await (admin as any)
         .from('transactions')
         .select(
-          'id, wallet_id, one_time_address, ephemeral_public_key, amount_sats, tx_hash, status, created_at'
+          'id, wallet_id, one_time_address, ephemeral_public_key, amount_sats, tx_hash, direction, status, created_at'
         )
-        .eq('wallet_id', (walletRow as { id?: string } | null)?.id ?? walletId)
-        .eq('direction', 'send')
+        .eq('wallet_id', walletRow?.id ?? walletId)
         .order('created_at', { ascending: false });
 
       if (txErr) throw txErr;
+      rows = payments ?? [];
+    } else {
+      const { data: userWallets } = await (admin as any)
+        .from('wallets')
+        .select('id')
+        .eq('user_id', auth.userId);
 
-      return NextResponse.json({
-        data: formatPayments(payments ?? []),
-        meta: { timestamp: new Date().toISOString() },
-      });
+      const walletIds = (userWallets ?? []).map(
+        (w: Record<string, unknown>) => (w as { id: string }).id
+      );
+
+      if (walletIds.length === 0) {
+        return NextResponse.json({
+          data: [],
+          meta: { timestamp: new Date().toISOString() },
+        });
+      }
+
+      const { data: payments, error: txErr } = await (admin as any)
+        .from('transactions')
+        .select(
+          'id, wallet_id, one_time_address, ephemeral_public_key, amount_sats, tx_hash, direction, status, created_at'
+        )
+        .in('wallet_id', walletIds)
+        .order('created_at', { ascending: false });
+
+      if (txErr) throw txErr;
+      rows = payments ?? [];
     }
 
-    // No walletId filter — get all user's wallet IDs first, then their transactions.
-    const { data: userWallets } = await admin
-      .from('wallets')
-      .select('id')
-      .eq('user_id', auth.userId);
+    // ── Lazy status sync ────────────────────────────────────────────────────
+    // For any transaction still marked 'pending', check Blockstream and
+    // update the DB so the client always sees the current confirmation state.
+    const pendingRows = rows.filter((r) => r.status === 'pending' && r.tx_hash);
 
-    const walletIds = (userWallets ?? []).map((w) => (w as { id: string }).id);
+    if (pendingRows.length > 0) {
+      const statusResults = await checkTxStatuses(pendingRows.map((r) => r.tx_hash));
 
-    if (walletIds.length === 0) {
-      return NextResponse.json({
-        data: [],
-        meta: { timestamp: new Date().toISOString() },
-      });
+      const confirmedHashes = new Set(
+        statusResults.filter((s) => s.confirmed).map((s) => s.txHash)
+      );
+
+      if (confirmedHashes.size > 0) {
+        // Bulk update confirmed transactions in the DB.
+        await (admin as any)
+          .from('transactions')
+          .update({ status: 'confirmed' })
+          .in('tx_hash', [...confirmedHashes]);
+
+        // Reflect the fresh status in the in-memory rows so the response
+        // is immediately up-to-date without a second DB round-trip.
+        for (const row of rows) {
+          if (confirmedHashes.has(row.tx_hash)) {
+            row.status = 'confirmed';
+          }
+        }
+      }
     }
-
-    const { data: payments, error: txErr } = await admin
-      .from('transactions')
-      .select(
-        'id, wallet_id, one_time_address, ephemeral_public_key, amount_sats, tx_hash, status, created_at'
-      )
-      .in('wallet_id', walletIds)
-      .eq('direction', 'send')
-      .order('created_at', { ascending: false });
-
-    if (txErr) throw txErr;
+    // ────────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({
-      data: formatPayments(payments ?? []),
+      data: formatPayments(rows),
       meta: { timestamp: new Date().toISOString() },
     });
   } catch (err) {
@@ -112,7 +151,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-function formatPayments(rows: Record<string, unknown>[]) {
+function formatPayments(rows: TxRow[]) {
   return rows.map((p) => ({
     id: p.id,
     walletId: p.wallet_id,
@@ -120,6 +159,7 @@ function formatPayments(rows: Record<string, unknown>[]) {
     ephemeralPublicKey: p.ephemeral_public_key,
     amountSats: p.amount_sats,
     txHash: p.tx_hash,
+    direction: p.direction,
     status: p.status,
     createdAt: p.created_at,
   }));

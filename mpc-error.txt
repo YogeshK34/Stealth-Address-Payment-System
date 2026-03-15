@@ -1,0 +1,47 @@
+testuser2@example.com
+TestPass12345!
+
+
+ ⨯ ./src/lib/wallets-mpc.ts
+@stealth/web:dev: Error: 
+@stealth/web:dev:   × Expression expected
+@stealth/web:dev:      ╭─[/home/yogesh/Desktop/Hackathon-Project/apps/web/src/lib/wallets-mpc.ts:150:1]
+@stealth/web:dev:  150 │     throw new Error(`Failed to unlink wallet: ${error.message}`);
+@stealth/web:dev:  151 │   }
+@stealth/web:dev:  152 │ }
+@stealth/web:dev:  153 │ }
+@stealth/web:dev:      · ─
+@stealth/web:dev:  154 │ 
+@stealth/web:dev:  155 │ export async function linkWalletForUser(params: {
+@stealth/web:dev:  156 │   userId: string;
+@stealth/web:dev:      ╰────
+@stealth/web:dev: 
+@stealth/web:dev: Caused by:
+@stealth/web:dev:     Syntax Error
+@stealth/web:dev: 
+@stealth/web:dev: Import trace for requested module:
+@stealth/web:dev: ./src/lib/wallets-mpc.ts
+@stealth/web:dev: ./src/app/api/v1/wallets/mpc/route.ts
+@stealth/web:dev:  ⨯ ./src/lib/wallets-mpc.ts
+@stealth/web:dev: Error: 
+@stealth/web:dev:   × Expression expected
+@stealth/web:dev:      ╭─[/home/yogesh/Desktop/Hackathon-Project/apps/web/src/lib/wallets-mpc.ts:150:1]
+@stealth/web:dev:  150 │     throw new Error(`Failed to unlink wallet: ${error.message}`);
+@stealth/web:dev:  151 │   }
+@stealth/web:dev:  152 │ }
+@stealth/web:dev:  153 │ }
+@stealth/web:dev:      · ─
+@stealth/web:dev:  154 │ 
+@stealth/web:dev:  155 │ export async function linkWalletForUser(params: {
+@stealth/web:dev:  156 │   userId: string;
+@stealth/web:dev:      ╰────
+@stealth/web:dev: 
+@stealth/web:dev: Caused by:
+@stealth/web:dev:     Syntax Error
+@stealth/web:dev: 
+@stealth/web:dev: Import trace for requested module:
+@stealth/web:dev: ./src/lib/wallets-mpc.ts
+@stealth/web:dev: ./src/app/api/v1/wallets/mpc/route.ts
+@stealth/web:dev:  GET /api/v1/wallets/mpc 500 in 6123ms
+@stealth/web:dev:  GET /api/v1/wallets/mpc 500 in 93ms
+@stealth/web:dev:  GET /dashboard 500 in 52ms

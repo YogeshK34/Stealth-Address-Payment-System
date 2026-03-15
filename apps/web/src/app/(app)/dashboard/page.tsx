@@ -40,6 +40,7 @@ type PaymentRecord = {
   stealthAddress: string | null;
   amountSats: number;
   txHash: string;
+  direction: 'send' | 'receive';
   status: string;
   createdAt: string;
 };
@@ -229,11 +230,16 @@ export default function DashboardPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
 
-  // Link-additional-wallet panel state
-  const [showLink, setShowLink] = useState(false);
+  // Right panel mode: list | create | link
+  const [rightMode, setRightMode] = useState<'list' | 'create' | 'link'>('list');
   const [linkWalletId, setLinkWalletId] = useState('');
   const [linking, setLinking] = useState(false);
   const [linkWarning, setLinkWarning] = useState<string | null>(null);
+  const [createLabel, setCreateLabel] = useState('');
+  const [createPassphrase, setCreatePassphrase] = useState('');
+  const [createConfirm, setCreateConfirm] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   // Payment history state
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -298,12 +304,53 @@ export default function DashboardPage(): React.JSX.Element {
       } else {
         await refreshWallets();
         setLinkWalletId('');
-        setShowLink(false);
+        setRightMode('list');
       }
     } catch {
       setError('Wallet lookup failed. Please check the wallet ID and try again.');
     } finally {
       setLinking(false);
+    }
+  };
+
+  const handleDashboardCreate = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setCreateError(null);
+    if (createPassphrase !== createConfirm) {
+      setCreateError('Passphrases do not match.');
+      return;
+    }
+    setCreating(true);
+    try {
+      await apiClient.post<CreateWalletResponse>('/wallets/mpc', {
+        label: createLabel,
+        passphrase: createPassphrase,
+      });
+      await refreshWallets();
+      setCreateLabel('');
+      setCreatePassphrase('');
+      setCreateConfirm('');
+      setRightMode('list');
+    } catch {
+      setCreateError('Wallet creation failed. Please try again.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleUnlink = async (walletId: string) => {
+    if (
+      !window.confirm(
+        'Remove this wallet from your account? This only unlinks it here — the BitGo wallet itself is not deleted.'
+      )
+    )
+      return;
+    try {
+      await apiClient.delete(`/wallets/mpc/${walletId}`);
+      if (selectedWalletId === walletId) setSelectedWalletId(null);
+      await refreshWallets();
+    } catch {
+      setError('Failed to unlink wallet.');
     }
   };
 
@@ -417,19 +464,76 @@ export default function DashboardPage(): React.JSX.Element {
 
         <div className="app-shell-panel rounded-[1.75rem] p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-light text-white">Link another wallet</h2>
-            <button
-              onClick={() => {
-                setShowLink((v) => !v);
-                setLinkWarning(null);
-              }}
-              className="text-xs text-white/45 hover:text-white/70"
-            >
-              {showLink ? 'Cancel' : 'Add wallet'}
-            </button>
+            <h2 className="text-lg font-light text-white">Wallets</h2>
+            {rightMode === 'list' ? (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setCreateError(null);
+                    setRightMode('create');
+                  }}
+                  className="text-xs text-white/45 hover:text-white/70"
+                >
+                  + New
+                </button>
+                <button
+                  onClick={() => {
+                    setLinkWarning(null);
+                    setRightMode('link');
+                  }}
+                  className="text-xs text-white/45 hover:text-white/70"
+                >
+                  Link ID
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setRightMode('list')}
+                className="text-xs text-white/45 hover:text-white/70"
+              >
+                Cancel
+              </button>
+            )}
           </div>
 
-          {showLink ? (
+          {rightMode === 'create' && (
+            <form className="mt-4 space-y-3" onSubmit={handleDashboardCreate}>
+              <input
+                type="text"
+                required
+                placeholder="Wallet label"
+                value={createLabel}
+                onChange={(e) => setCreateLabel(e.target.value)}
+                className="input-premium"
+              />
+              <input
+                type="password"
+                required
+                minLength={8}
+                placeholder="Passphrase (min 8 chars)"
+                value={createPassphrase}
+                onChange={(e) => setCreatePassphrase(e.target.value)}
+                className="input-premium"
+              />
+              <input
+                type="password"
+                required
+                placeholder="Confirm passphrase"
+                value={createConfirm}
+                onChange={(e) => setCreateConfirm(e.target.value)}
+                className="input-premium"
+              />
+              {createError && <p className="text-sm text-rose-300">{createError}</p>}
+              <p className="text-xs leading-5 text-amber-200/70">
+                Store your passphrase securely — it cannot be recovered.
+              </p>
+              <button type="submit" disabled={creating} className="button-premium w-full">
+                {creating ? 'Creating…' : 'Create wallet'}
+              </button>
+            </form>
+          )}
+
+          {rightMode === 'link' && (
             <form className="mt-4 space-y-3" onSubmit={onLinkAdditional}>
               <input
                 type="text"
@@ -444,30 +548,47 @@ export default function DashboardPage(): React.JSX.Element {
                 {linking ? 'Verifying…' : 'Verify & link'}
               </button>
             </form>
-          ) : (
+          )}
+
+          {rightMode === 'list' && (
             <div className="mt-4 space-y-2">
               {wallets.map((w) => {
                 const isActive = w.walletId === activeWallet?.walletId;
                 return (
-                  <button
+                  <div
                     key={w.walletId}
-                    onClick={() => setSelectedWalletId(w.walletId)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition-colors ${
+                    className={`group rounded-2xl border px-4 py-3 text-sm transition-colors ${
                       isActive
-                        ? 'border-fuchsia-400/40 bg-fuchsia-400/10 text-white'
-                        : 'border-white/10 bg-white/[0.03] text-white/75 hover:border-white/20 hover:bg-white/[0.06]'
+                        ? 'border-fuchsia-400/40 bg-fuchsia-400/10'
+                        : 'border-white/10 bg-white/[0.03]'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <p>{w.walletLabel}</p>
-                      {isActive && (
-                        <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-400/15 px-2 py-0.5 text-xs text-fuchsia-200">
-                          active
-                        </span>
-                      )}
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => setSelectedWalletId(w.walletId)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <p className={isActive ? 'text-white' : 'text-white/75'}>
+                            {w.walletLabel}
+                          </p>
+                          {isActive && (
+                            <span className="shrink-0 rounded-full border border-fuchsia-400/30 bg-fuchsia-400/15 px-2 py-0.5 text-xs text-fuchsia-200">
+                              active
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 font-mono text-xs text-white/35">{w.walletId}</p>
+                      </button>
+                      <button
+                        onClick={() => handleUnlink(w.walletId)}
+                        className="shrink-0 rounded-lg px-2 py-1 text-xs text-white/25 opacity-0 transition-opacity hover:text-rose-300 group-hover:opacity-100"
+                        title="Unlink wallet"
+                      >
+                        Remove
+                      </button>
                     </div>
-                    <p className="mt-1 font-mono text-xs text-white/35">{w.walletId}</p>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -478,7 +599,7 @@ export default function DashboardPage(): React.JSX.Element {
       {/* Payment history */}
       <section className="app-shell-panel rounded-[1.75rem] p-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-light text-white">Recent stealth payments</h2>
+          <h2 className="text-lg font-light text-white">Stealth payment history</h2>
           <button
             onClick={refreshPayments}
             disabled={paymentsLoading}
@@ -492,7 +613,7 @@ export default function DashboardPage(): React.JSX.Element {
           <p className="mt-4 text-sm text-white/40">Loading history...</p>
         ) : payments.length === 0 ? (
           <p className="mt-4 text-sm text-white/40">
-            No outgoing stealth payments yet. Send one from the Send page.
+            No stealth payments yet. Send one from the Send page.
           </p>
         ) : (
           <div className="mt-4 space-y-3">
@@ -501,31 +622,47 @@ export default function DashboardPage(): React.JSX.Element {
                 key={p.id}
                 className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-white/50">
-                    {p.txHash.slice(0, 10)}...{p.txHash.slice(-8)}
-                  </span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-light ${
+                        p.direction === 'receive'
+                          ? 'border border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+                          : 'border border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-200'
+                      }`}
+                    >
+                      {p.direction === 'receive' ? 'sweep in' : 'send'}
+                    </span>
+                    <span className="font-mono text-xs text-white/50">
+                      {p.txHash.slice(0, 10)}…{p.txHash.slice(-8)}
+                    </span>
+                  </div>
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
                       p.status === 'confirmed'
                         ? 'border border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
-                        : p.status === 'failed'
-                          ? 'border border-rose-400/20 bg-rose-400/10 text-rose-200'
-                          : 'border border-amber-400/20 bg-amber-400/10 text-amber-200'
+                        : p.status === 'swept'
+                          ? 'border border-sky-400/20 bg-sky-400/10 text-sky-200'
+                          : p.status === 'failed'
+                            ? 'border border-rose-400/20 bg-rose-400/10 text-rose-200'
+                            : 'border border-amber-400/20 bg-amber-400/10 text-amber-200'
                     }`}
                   >
                     {p.status}
                   </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-white/70">
-                  <span>{p.amountSats.toLocaleString()} sats</span>
+                  <span>
+                    {p.direction === 'receive' ? '+' : '-'}
+                    {p.amountSats.toLocaleString()} sats
+                  </span>
                   <span className="text-xs text-white/35">
                     {new Date(p.createdAt).toLocaleDateString()}
                   </span>
                 </div>
                 {p.stealthAddress && (
                   <p className="mt-1 truncate font-mono text-xs text-fuchsia-100/50">
-                    To: {p.stealthAddress}
+                    {p.direction === 'receive' ? 'From:' : 'To:'} {p.stealthAddress}
                   </p>
                 )}
               </div>

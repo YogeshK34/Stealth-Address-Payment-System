@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { getBitGoCoin } from '@/lib/bitgo';
 import { prisma } from '@/lib/prisma';
@@ -35,12 +34,12 @@ export async function GET(
     );
   }
 
-  const walletRows = await prisma.$queryRaw<WalletLookupRow[]>(Prisma.sql`
-    SELECT id, bitgo_wallet_id, network
+  const walletRows = await prisma.$queryRaw<WalletLookupRow[]>(
+    `SELECT id, bitgo_wallet_id, network
     FROM wallets
-    WHERE id = ${parsed.data.id}
-    LIMIT 1
-  `);
+    WHERE id = '${parsed.data.id}'
+    LIMIT 1`
+  );
 
   const wallet = walletRows[0];
 
@@ -54,17 +53,12 @@ export async function GET(
   try {
     const coin = await getBitGoCoin(wallet.network);
     const bitgoWallet = await coin.wallets().get({ id: wallet.bitgo_wallet_id });
-    const source = bitgoWallet as {
-      balanceString?: string;
-      confirmedBalanceString?: string;
-      spendableBalanceString?: string;
-    };
 
     return NextResponse.json({
       data: {
-        balanceString: source.balanceString ?? '0',
-        confirmedBalanceString: source.confirmedBalanceString ?? '0',
-        spendableBalanceString: source.spendableBalanceString ?? '0',
+        balanceString: bitgoWallet.balanceString(),
+        confirmedBalanceString: bitgoWallet.confirmedBalanceString(),
+        spendableBalanceString: bitgoWallet.spendableBalanceString(),
       },
       meta: { timestamp: new Date().toISOString() },
     });

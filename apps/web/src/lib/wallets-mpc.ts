@@ -1,8 +1,8 @@
 import { getSupabaseAdmin } from '@stealth/db';
 import {
   createTbtcMpcWallet,
-  createTbtcReceiveAddress,
   fetchTbtcWallet,
+  fetchTbtcWalletWithAddress,
   isMpcWallet,
   type BitGoMpcWalletDetails,
 } from '@/lib/bitgo-mpc';
@@ -134,6 +134,23 @@ export async function createWalletForUser(params: {
   };
 }
 
+export async function unlinkWalletForUser(params: {
+  userId: string;
+  walletId: string;
+}): Promise<void> {
+  const admin = getSupabaseAdmin();
+
+  const { error } = await (admin as any)
+    .from('wallets')
+    .delete()
+    .eq('wallet_id', params.walletId)
+    .eq('user_id', params.userId);
+
+  if (error) {
+    throw new Error(`Failed to unlink wallet: ${error.message}`);
+  }
+}
+
 export async function linkWalletForUser(params: {
   userId: string;
   walletId: string;
@@ -160,18 +177,10 @@ export async function linkWalletForUser(params: {
     };
   }
 
-  // Reuse the stored receive address if one already exists — avoid creating a new
-  // BitGo address on every link call.
-  const admin = getSupabaseAdmin();
-  const { data: existing } = await (admin as any)
-    .from('wallets')
-    .select('receive_address')
-    .eq('wallet_id', params.walletId)
-    .maybeSingle();
-
-  const receiveAddress: string =
-    (existing as { receive_address?: string } | null)?.receive_address ||
-    (await createTbtcReceiveAddress(params.walletId));
+  // Fetch the wallet with its receive address directly from BitGo.
+  // This ensures we get the actual address from BitGo, not from our database,
+  // which is important if the wallet was created outside this application.
+  const { receiveAddress } = await fetchTbtcWalletWithAddress(params.walletId);
 
   const metadata = await saveWalletMetadata({
     userId: params.userId,

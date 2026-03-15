@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { generateRandomStealthMetaAddress } from '@scopelift/stealth-address-sdk';
 import { getBitGoCoin } from '@/lib/bitgo';
@@ -39,8 +38,8 @@ function internalError(message = 'An internal error occurred.'): NextResponse {
 // GET /api/v1/wallets
 export async function GET(): Promise<NextResponse> {
   try {
-    const wallets = await prisma.$queryRaw<WalletRow[]>(Prisma.sql`
-      SELECT
+    const wallets = await prisma.$queryRaw<WalletRow[]>(
+      `SELECT
         id,
         label,
         bitgo_wallet_id,
@@ -49,8 +48,8 @@ export async function GET(): Promise<NextResponse> {
         public_spend_key,
         created_at
       FROM wallets
-      ORDER BY created_at DESC
-    `);
+      ORDER BY created_at DESC`
+    );
 
     return NextResponse.json({
       data: wallets,
@@ -83,12 +82,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const network = process.env.BITGO_COIN ?? 'tbtc';
 
   try {
-    const ownerRows = await prisma.$queryRaw<UserIdRow[]>(Prisma.sql`
-      SELECT user_id
+    const ownerRows = await prisma.$queryRaw<UserIdRow[]>(
+      `SELECT user_id
       FROM wallets
       ORDER BY created_at ASC
-      LIMIT 1
-    `);
+      LIMIT 1`
+    );
 
     const ownerUserId = ownerRows[0]?.user_id;
     if (!ownerUserId) {
@@ -115,8 +114,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
     const bitgoWalletId = bitgoWalletResult.wallet.id();
 
-    const inserted = await prisma.$queryRaw<WalletRow[]>(Prisma.sql`
-      INSERT INTO wallets (
+    const inserted = await prisma.$queryRaw<WalletRow[]>(
+      `INSERT INTO wallets (
         user_id,
         label,
         bitgo_wallet_id,
@@ -127,17 +126,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         public_spend_key
       )
       VALUES (
-        ${ownerUserId},
-        ${label},
-        ${bitgoWalletId},
-        ${network},
-        ${viewingPrivateKey},
-        ${spendingPrivateKey},
-        ${viewingPublicKey},
-        ${spendingPublicKey}
+        '${ownerUserId}',
+        '${label}',
+        '${bitgoWalletId}',
+        '${network}',
+        '${viewingPrivateKey}',
+        '${spendingPrivateKey}',
+        '${viewingPublicKey}',
+        '${spendingPublicKey}'
       )
-      RETURNING id, label, bitgo_wallet_id, network, public_view_key, public_spend_key, created_at
-    `);
+      RETURNING id, label, bitgo_wallet_id, network, public_view_key, public_spend_key, created_at`
+    );
 
     const wallet = inserted[0];
     if (!wallet) {

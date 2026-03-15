@@ -73,6 +73,25 @@ export async function fetchTbtcWallet(walletId: string): Promise<BitGoMpcWalletD
   return readWalletDetails(wallet);
 }
 
+export async function fetchTbtcWalletWithAddress(
+  walletId: string
+): Promise<{ details: BitGoMpcWalletDetails; receiveAddress: string }> {
+  const coin = await getBitGoCoin('tbtc');
+  const walletResponse = (await coin
+    .wallets()
+    .get({ id: walletId })) as unknown as BitGoWalletShape;
+  const details = readWalletDetails(walletResponse);
+
+  // Extract the receive address directly from BitGo's response
+  const receiveAddress = asString(walletResponse._wallet?.receiveAddress?.address);
+
+  if (!receiveAddress) {
+    throw new Error('BitGo wallet does not have a receive address.');
+  }
+
+  return { details, receiveAddress };
+}
+
 export async function createTbtcMpcWallet(params: {
   label: string;
   passphrase: string;

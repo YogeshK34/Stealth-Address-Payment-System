@@ -6,9 +6,12 @@ import { getSupabaseAdmin } from '@stealth/db';
 
 const sendSchema = z.object({
   senderWalletId: z.string().trim().min(1, 'senderWalletId is required'),
-  stealthAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'Invalid stealth address'),
-  ephemeralPublicKey: z.string().regex(/^0x[0-9a-fA-F]+$/, 'Invalid ephemeral public key'),
-  viewTag: z.string().regex(/^0x[0-9a-fA-F]{1,4}$/, 'Invalid view tag'),
+  // Bitcoin address (tb1q…, m…, n…, 2…) — any format BitGo accepts
+  stealthAddress: z.string().min(14, 'Invalid Bitcoin address'),
+  // 33-byte compressed secp256k1 public key (66 hex chars, no 0x prefix)
+  ephemeralPublicKey: z.string().regex(/^(02|03)[0-9a-fA-F]{64}$/, 'Invalid ephemeral public key'),
+  // First byte of shared secret (2 hex chars, no 0x prefix)
+  viewTag: z.string().min(1, 'viewTag is required'),
   amountSats: z.number().int().positive('amountSats must be a positive integer'),
   walletPassphrase: z.string().min(1, 'Wallet passphrase is required'),
 });
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const admin = getSupabaseAdmin();
 
   // Verify wallet exists and belongs to the authenticated user.
-  const { data: wallet, error: walletErr } = await admin
+  const { data: wallet, error: walletErr } = await (admin as any)
     .from('wallets')
     .select('id, wallet_id, network, user_id')
     .or(`id.eq.${senderWalletId},wallet_id.eq.${senderWalletId}`)
