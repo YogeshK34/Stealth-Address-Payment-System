@@ -2,6 +2,7 @@
 
 > Privacy-preserving payment system using **stealth addresses** built on top of **BitGo MPC wallets** and **Supabase**.
 > Every payment lands at a unique, unlinkable on-chain address — powered by ERC-5564 and secp256k1 elliptic-curve cryptography.
+> Deployable link - https://stealth-address-payment-system-web-weld.vercel.app/
 
 ---
 
